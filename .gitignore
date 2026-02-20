@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# Generated outputs
+visual_report_*
+todbiccz_*
+
+# Client project data
+projects/
+
+# Secrets
+.env
+.env.local
+
+# Node
+node_modules/
+.next/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing / Coverage
+.pytest_cache/
+htmlcov/
+.coverage
+*.log
+.mypy_cache/
+
+# Git backup
+.git_backup/

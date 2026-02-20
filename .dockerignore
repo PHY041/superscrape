@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.env
+.env.example
+frontend/
+nginx/
+docker-compose.yml
+todbiccz_*
+visual_report_*
+tests/
+examples/

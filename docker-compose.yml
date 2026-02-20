@@ -1,0 +1,65 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: superscrape-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BYTEPLUSES_API_KEY=${BYTEPLUSES_API_KEY:-}
+      - REPORTS_DIR=/app/reports
+    volumes:
+      - reports:/app/reports
+      - cache:/root/.superscrape/cache
+    networks:
+      - superscrape
+    mem_limit: 3g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_URL: http://backend:8001
+    container_name: superscrape-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - BACKEND_URL=http://backend:8001
+    networks:
+      - superscrape
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    container_name: superscrape-nginx
+    restart: unless-stopped
+    ports:
+      - "2088:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - superscrape
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  reports:
+  cache:
+
+networks:
+  superscrape:
+    driver: bridge
