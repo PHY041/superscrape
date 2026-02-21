@@ -61,7 +61,7 @@ def _make_product_images(urls: list[str]) -> list[ProductImage]:
     return images
 
 
-_JS_SEARCH = r'''() => {
+_JS_SEARCH = r"""() => {
     const items = [];
     const seen = new Set();
 
@@ -104,9 +104,9 @@ _JS_SEARCH = r'''() => {
     }
 
     return items;
-}'''
+}"""
 
-_JS_PRODUCT = r'''() => {
+_JS_PRODUCT = r"""() => {
     const title = document.querySelector('h1[data-buy-box-listing-title], h1')?.textContent?.trim() || '';
     const priceEl = document.querySelector('[data-buy-box-region="price"] p, [class*="price"], [data-appears-component-name="price"]');
     const price = priceEl?.textContent?.trim() || '';
@@ -139,7 +139,7 @@ _JS_PRODUCT = r'''() => {
     });
 
     return {title, price, shopName, favorites, rating, reviewsCount, imageUrls: Array.from(imgs)};
-}'''
+}"""
 
 
 class Etsy:
@@ -218,9 +218,7 @@ class Etsy:
             for i, sr in enumerate(unique):
                 href = sr.get("href", "")
                 full_url = href if href.startswith("http") else f"{_BASE}{href}"
-                futures[executor.submit(
-                    Etsy.product, full_url, headless=headless
-                )] = (i, sr)
+                futures[executor.submit(Etsy.product, full_url, headless=headless)] = (i, sr)
                 time.sleep(0.5)
 
             for future in as_completed(futures):
@@ -230,7 +228,10 @@ class Etsy:
                     products.append(product)
                     logger.info(
                         "[%d/%d] %s... (%d images)",
-                        i + 1, total, product.title[:60], len(product.images),
+                        i + 1,
+                        total,
+                        product.title[:60],
+                        len(product.images),
                     )
                 except Exception as e:
                     logger.warning("[%d/%d] FAILED: %s", i + 1, total, e)

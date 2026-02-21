@@ -5,7 +5,7 @@ from __future__ import annotations
 from superscrape.core.browser import fresh_browser
 from superscrape.output.models import InstagramPost, InstagramProfile
 
-_JS_PROFILE = r'''() => {
+_JS_PROFILE = r"""() => {
     const meta = document.querySelectorAll("meta");
     let description = "";
     meta.forEach(m => {
@@ -65,16 +65,14 @@ _JS_PROFILE = r'''() => {
     }).filter(p => p.shortcode);
 
     return { followers, following, postsCount, bio: bioPart, profilePic, fullName, verified, posts };
-}'''
+}"""
 
 
 class Instagram:
     """Instagram public profile scraper."""
 
     @staticmethod
-    def profile(
-        username: str, *, headless: bool = True
-    ) -> tuple[InstagramProfile, list[InstagramPost]]:
+    def profile(username: str, *, headless: bool = True) -> tuple[InstagramProfile, list[InstagramPost]]:
         """Scrape a public Instagram profile and its recent posts."""
         url = f"https://www.instagram.com/{username}/"
         with fresh_browser(headless=headless) as page:

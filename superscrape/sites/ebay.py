@@ -62,7 +62,7 @@ def _make_product_images(urls: list[str]) -> list[ProductImage]:
     return images
 
 
-_JS_SEARCH = r'''() => {
+_JS_SEARCH = r"""() => {
     const links = document.querySelectorAll('a[href*="/itm/"]');
     const seen = new Set();
     const items = [];
@@ -87,9 +87,9 @@ _JS_SEARCH = r'''() => {
         items.push({href: href.split('?')[0], title: title.substring(0, 120), price, img: imgSrc, eid});
     });
     return items;
-}'''
+}"""
 
-_JS_PRODUCT = r'''() => {
+_JS_PRODUCT = r"""() => {
     const title = document.querySelector('h1.x-item-title__mainTitle span, h1[class*="title"]')?.textContent?.trim() || '';
     const priceEl = document.querySelector('.x-price-primary span, [itemprop="price"], .vi-price');
     const price = priceEl?.textContent?.trim() || '';
@@ -117,7 +117,7 @@ _JS_PRODUCT = r'''() => {
     });
 
     return {title, price, condition, rating, sellerName, imageUrls: Array.from(imgs)};
-}'''
+}"""
 
 
 class Ebay:
@@ -194,9 +194,7 @@ class Ebay:
             futures: dict = {}
             for i, sr in enumerate(unique):
                 href = sr.get("href", "")
-                futures[executor.submit(
-                    Ebay.product, href, headless=headless
-                )] = (i, sr)
+                futures[executor.submit(Ebay.product, href, headless=headless)] = (i, sr)
                 time.sleep(0.5)
 
             for future in as_completed(futures):
@@ -206,7 +204,10 @@ class Ebay:
                     products.append(product)
                     logger.info(
                         "[%d/%d] %s... (%d images)",
-                        i + 1, total, product.title[:60], len(product.images),
+                        i + 1,
+                        total,
+                        product.title[:60],
+                        len(product.images),
                     )
                 except Exception as e:
                     logger.warning("[%d/%d] FAILED: %s", i + 1, total, e)

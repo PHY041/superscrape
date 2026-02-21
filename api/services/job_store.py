@@ -57,9 +57,7 @@ class JobStore:
             for q in list(self._subscribers[job_id]):
                 q.put_nowait(event)
 
-    def mark_done(
-        self, job_id: str, report_url: str, pdf_url: str | None = None
-    ) -> None:
+    def mark_done(self, job_id: str, report_url: str, pdf_url: str | None = None) -> None:
         """Mark a job as completed, store URLs, and terminate all subscriber streams."""
         with self._lock:
             status = self._jobs.get(job_id)

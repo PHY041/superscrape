@@ -68,9 +68,7 @@ class JobRequest(BaseModel):
 
         # Amazon-specific: extract ASIN from full URL
         if self.platform == Platform.amazon:
-            match = re.search(
-                r"(?:/dp/|/gp/product/|/product/)([A-Z0-9]{10})", self.query
-            )
+            match = re.search(r"(?:/dp/|/gp/product/|/product/)([A-Z0-9]{10})", self.query)
             if match:
                 self.query = match.group(1)
 

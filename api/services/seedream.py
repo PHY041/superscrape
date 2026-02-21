@@ -13,9 +13,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_BYTEPLUSES_ENDPOINT = (
-    "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations"
-)
+_BYTEPLUSES_ENDPOINT = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations"
 _SEEDREAM_MODEL = "seedream-4-5-251128"
 _DEFAULT_API_KEY = None  # must be set via BYTEPLUSES_API_KEY env var
 
@@ -53,10 +51,7 @@ def generate_lifestyle_images(
     """
     api_key = os.environ.get("BYTEPLUSES_API_KEY")
     if not api_key:
-        raise EnvironmentError(
-            "BYTEPLUSES_API_KEY is not set. "
-            "Export it before running: export BYTEPLUSES_API_KEY=..."
-        )
+        raise EnvironmentError("BYTEPLUSES_API_KEY is not set. Export it before running: export BYTEPLUSES_API_KEY=...")
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -77,9 +72,7 @@ def generate_lifestyle_images(
             }
 
             try:
-                response = client.post(
-                    _BYTEPLUSES_ENDPOINT, json=payload, headers=headers
-                )
+                response = client.post(_BYTEPLUSES_ENDPOINT, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
 
@@ -92,8 +85,6 @@ def generate_lifestyle_images(
                     product.asin,
                 )
             except (httpx.HTTPError, KeyError, IndexError) as exc:
-                logger.warning(
-                    "Seedream generation failed for ASIN %s: %s", product.asin, exc
-                )
+                logger.warning("Seedream generation failed for ASIN %s: %s", product.asin, exc)
 
     return urls

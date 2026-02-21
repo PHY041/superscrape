@@ -196,9 +196,7 @@ class JobRunner:
         while True:
             job_id, req = await self._queue.get()
             try:
-                await loop.run_in_executor(
-                    _executor, _run_pipeline_sync, job_id, req
-                )
+                await loop.run_in_executor(_executor, _run_pipeline_sync, job_id, req)
             except Exception as exc:
                 logger.exception("Unhandled error dispatching job %s", job_id)
                 store.mark_failed(job_id, error=str(exc))

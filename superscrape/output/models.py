@@ -133,7 +133,7 @@ class ImageAnalysis(BaseModel):
     asin: str = ""
     item_id: str = ""
     image_type: str = ""  # white_bg, lifestyle, infographic, model, flat_lay
-    angle: str = ""       # front, 45deg, top, side
+    angle: str = ""  # front, 45deg, top, side
     has_text: bool = False
     has_person: bool = False
     background: str = ""  # white, scene, studio, outdoor

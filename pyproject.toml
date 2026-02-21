@@ -44,10 +44,17 @@ Issues = "https://github.com/PHY041/superscrape/issues"
 
 [tool.ruff]
 target-version = "py310"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"superscrape/sites/*.py" = ["E501"]
+"superscrape/analyzers/*.py" = ["E501"]
+"api/reports/html_builder.py" = ["E501"]
+"api/routes/*.py" = ["E501"]
+"api/services/*.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"

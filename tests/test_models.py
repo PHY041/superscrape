@@ -20,9 +20,11 @@ def test_product_image_creation():
 
 
 def test_scraped_item_main_image_url():
-    item = ScrapedItem(images=[
-        ProductImage(url="u1", image_id="id1", hi_res_url="hi1"),
-    ])
+    item = ScrapedItem(
+        images=[
+            ProductImage(url="u1", image_id="id1", hi_res_url="hi1"),
+        ]
+    )
     assert item.main_image_url == "hi1"
 
 

@@ -36,7 +36,7 @@ def _extract_image_ids(raw_urls: list[str]) -> list[ProductImage]:
     return list(seen.values())
 
 
-_JS_EXTRACT_PRODUCT = r'''() => {
+_JS_EXTRACT_PRODUCT = r"""() => {
     const $ = s => document.querySelector(s);
     const $$ = s => [...document.querySelectorAll(s)];
 
@@ -115,9 +115,9 @@ _JS_EXTRACT_PRODUCT = r'''() => {
         features, description, bsr, category,
         imageUrls: Array.from(imgUrls),
     };
-}'''
+}"""
 
-_JS_SEARCH_RESULTS = r'''() => {
+_JS_SEARCH_RESULTS = r"""() => {
     return [...document.querySelectorAll('[data-component-type="s-search-result"]')].map(el => {
         const asin = el.getAttribute("data-asin") || "";
         if (!asin) return null;
@@ -176,7 +176,7 @@ _JS_SEARCH_RESULTS = r'''() => {
 
         return { asin, title, price, rating, reviews_count: reviewsCount, image_url: imageUrl, url, sponsored };
     }).filter(Boolean);
-}'''
+}"""
 
 
 class Amazon:
@@ -231,7 +231,9 @@ class Amazon:
                     title = page.title()
                     logger.warning(
                         "Amazon search page %d returned 0 results (title=%r, url=%s)",
-                        page_num, title[:80], page.url[:120],
+                        page_num,
+                        title[:80],
+                        page.url[:120],
                     )
                 for item in items:
                     results.append(AmazonSearchResult(**item))
@@ -252,9 +254,7 @@ class Amazon:
 
         This is the core method for Amazon Visual Intelligence.
         """
-        search_results = Amazon.search(
-            keyword, pages=(top_n // 20) + 1, headless=headless
-        )
+        search_results = Amazon.search(keyword, pages=(top_n // 20) + 1, headless=headless)
 
         # Deduplicate and limit
         seen_asins: set[str] = set()
@@ -290,8 +290,12 @@ class Amazon:
                     products.append(product)
                     logger.info(
                         "[%d/%d] %s... (%.1f stars, %d reviews, %d images)",
-                        i + 1, total, product.title[:60],
-                        product.rating, product.reviews_count, len(product.images),
+                        i + 1,
+                        total,
+                        product.title[:60],
+                        product.rating,
+                        product.reviews_count,
+                        len(product.images),
                     )
                 except Exception as e:
                     logger.warning("[%d/%d] FAILED %s: %s", i + 1, total, sr.asin, e)

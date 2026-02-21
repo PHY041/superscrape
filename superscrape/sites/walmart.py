@@ -181,6 +181,7 @@ class Walmart:
     @staticmethod
     def _scrape_images(url: str, *, headless: bool = True) -> list[str]:
         """Visit a product page and extract image URLs only."""
+
         def _scrape() -> list[str]:
             with fresh_browser(headless=headless) as page:
                 page.goto(url, timeout=60000, wait_until="domcontentloaded")
@@ -285,8 +286,12 @@ class Walmart:
                         products.append(product)
                         logger.info(
                             "[%d/%d] %s... (%.1f stars, %d reviews, %d images)",
-                            i + 1, total, product.title[:60],
-                            product.rating, product.reviews_count, len(product.images),
+                            i + 1,
+                            total,
+                            product.title[:60],
+                            product.rating,
+                            product.reviews_count,
+                            len(product.images),
                         )
                 except Exception as e:
                     logger.warning("[%d/%d] FAILED: %s", i + 1, total, e)

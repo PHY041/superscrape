@@ -82,8 +82,12 @@ def search(keyword: str, pages: int, output: str):
         table.add_column("Reviews")
         for i, r in enumerate(results, 1):
             table.add_row(
-                str(i), r.asin, r.title[:50], r.price,
-                str(r.rating), str(r.reviews_count),
+                str(i),
+                r.asin,
+                r.title[:50],
+                r.price,
+                str(r.rating),
+                str(r.reviews_count),
             )
         console.print(table)
 
@@ -166,10 +170,15 @@ def instagram(username: str, output: str):
     profile, posts = Instagram.profile(username)
 
     if output == "json":
-        click.echo(json.dumps({
-            "profile": profile.model_dump(),
-            "posts": [p.model_dump() for p in posts],
-        }, indent=2))
+        click.echo(
+            json.dumps(
+                {
+                    "profile": profile.model_dump(),
+                    "posts": [p.model_dump() for p in posts],
+                },
+                indent=2,
+            )
+        )
     else:
         table = Table(title=f"Instagram: @{username}")
         table.add_column("Field", style="cyan")
@@ -210,8 +219,11 @@ def reddit(subreddit: str, sort: str, limit: int, output: str):
         table.add_column("Comments")
         for i, p in enumerate(posts, 1):
             table.add_row(
-                str(i), str(p.score), p.title[:60],
-                p.author, str(p.num_comments),
+                str(i),
+                str(p.score),
+                p.title[:60],
+                p.author,
+                str(p.num_comments),
             )
         console.print(table)
 

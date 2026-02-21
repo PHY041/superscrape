@@ -20,6 +20,7 @@ def _validate_job_id(job_id: str) -> None:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job ID format")
 
+
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 _REPORTS_DIR = Path(os.environ.get("REPORTS_DIR", "/tmp/superscrape_reports"))

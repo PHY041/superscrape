@@ -58,7 +58,7 @@ async def stream_job(job_id: str) -> StreamingResponse:
                 if event.step in (PipelineStep.done, PipelineStep.failed):
                     break
         except Exception:
-            yield "data: {\"step\": \"failed\", \"message\": \"Stream error\", \"progress\": 0, \"detail\": {}}\n\n"
+            yield 'data: {"step": "failed", "message": "Stream error", "progress": 0, "detail": {}}\n\n'
 
     return StreamingResponse(
         _event_generator(),

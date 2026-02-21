@@ -158,6 +158,7 @@ def _fetch_image_b64(url: str) -> str | None:
 
 # ── Score Computation ─────────────────────────────────────────────────────────
 
+
 def _visual_score_letter(report: "CategoryVisualReport") -> tuple[str, str, str]:
     """Compute a visual score letter (A-D) based on report data.
 
@@ -225,64 +226,44 @@ def _generate_executive_findings(
         top_type = max(report.image_type_distribution, key=report.image_type_distribution.get)
         top_pct = report.image_type_distribution[top_type]
         if lang == "zh":
-            findings.append(
-                f"主导图片类型是 <strong>{top_type}</strong>（占 {top_pct:.0f}%）"
-                "— 这是该品类的视觉基准线"
-            )
+            findings.append(f"主导图片类型是 <strong>{top_type}</strong>（占 {top_pct:.0f}%）— 这是该品类的视觉基准线")
         else:
             findings.append(
-                f"<strong>{top_type}</strong> dominates at {top_pct:.0f}% "
-                "— this is the category visual baseline"
+                f"<strong>{top_type}</strong> dominates at {top_pct:.0f}% — this is the category visual baseline"
             )
 
     # Finding 2: Person/model usage
     person_pct = report.has_person_ratio
     if lang == "zh":
         if person_pct > 40:
-            findings.append(
-                f"<strong>{person_pct:.0f}%</strong> 的竞品使用真人模特 — 你也需要人物展示"
-            )
+            findings.append(f"<strong>{person_pct:.0f}%</strong> 的竞品使用真人模特 — 你也需要人物展示")
         elif person_pct < 15:
-            findings.append(
-                f"仅 <strong>{person_pct:.0f}%</strong> 使用人物 — 添加模特可成为差异化优势"
-            )
+            findings.append(f"仅 <strong>{person_pct:.0f}%</strong> 使用人物 — 添加模特可成为差异化优势")
         else:
-            findings.append(
-                f"<strong>{person_pct:.0f}%</strong> 的产品展示人物 — 行业中等水平"
-            )
+            findings.append(f"<strong>{person_pct:.0f}%</strong> 的产品展示人物 — 行业中等水平")
     else:
         if person_pct > 40:
             findings.append(
-                f"<strong>{person_pct:.0f}%</strong> of competitors use people/models "
-                "— you need human presence too"
+                f"<strong>{person_pct:.0f}%</strong> of competitors use people/models — you need human presence too"
             )
         elif person_pct < 15:
             findings.append(
-                f"Only <strong>{person_pct:.0f}%</strong> show people "
-                "— adding a model could differentiate you"
+                f"Only <strong>{person_pct:.0f}%</strong> show people — adding a model could differentiate you"
             )
         else:
-            findings.append(
-                f"<strong>{person_pct:.0f}%</strong> of products show people "
-                "— moderate industry standard"
-            )
+            findings.append(f"<strong>{person_pct:.0f}%</strong> of products show people — moderate industry standard")
 
     # Finding 3: Text overlay
     text_pct = report.has_text_ratio
     if lang == "zh":
         if text_pct > 50:
-            findings.append(
-                f"<strong>{text_pct:.0f}%</strong> 使用文字标注 — 信息图/功能标注是标配"
-            )
+            findings.append(f"<strong>{text_pct:.0f}%</strong> 使用文字标注 — 信息图/功能标注是标配")
         else:
-            findings.append(
-                f"仅 <strong>{text_pct:.0f}%</strong> 使用文字覆层 — 添加卖点标注可脱颖而出"
-            )
+            findings.append(f"仅 <strong>{text_pct:.0f}%</strong> 使用文字覆层 — 添加卖点标注可脱颖而出")
     else:
         if text_pct > 50:
             findings.append(
-                f"<strong>{text_pct:.0f}%</strong> use text overlays "
-                "— callouts and feature badges are standard"
+                f"<strong>{text_pct:.0f}%</strong> use text overlays — callouts and feature badges are standard"
             )
         else:
             findings.append(
@@ -294,6 +275,7 @@ def _generate_executive_findings(
 
 
 # ── HTML Section Builders ─────────────────────────────────────────────────────
+
 
 def _bar_html(pct: float, color: str = "#2563EB") -> str:
     """Render a progress bar as inline HTML."""
@@ -316,9 +298,7 @@ def _dist_table_rows(dist: dict[str, float]) -> str:
             color = "#2563EB"
         else:
             color = "#94A3B8"
-        rows.append(
-            f"<tr><td>{html_lib.escape(str(label))}</td><td>{_bar_html(pct, color)}</td></tr>"
-        )
+        rows.append(f"<tr><td>{html_lib.escape(str(label))}</td><td>{_bar_html(pct, color)}</td></tr>")
     return "\n".join(rows)
 
 
@@ -332,21 +312,20 @@ def _build_exec_summary(
     findings = _generate_executive_findings(report, lang)
 
     findings_html = "\n".join(
-        f'<div class="finding-item"><span class="finding-bullet">&#x2022;</span>{f}</div>'
-        for f in findings
+        f'<div class="finding-item"><span class="finding-bullet">&#x2022;</span>{f}</div>' for f in findings
     )
 
     return f"""
     <div class="exec-summary">
       <div class="exec-left">
-        <h2>{lbl['exec_summary']}</h2>
+        <h2>{lbl["exec_summary"]}</h2>
         <div class="score-badge" style="border-color:{color}">
           <div class="score-letter" style="color:{color}">{letter}</div>
           <div class="score-desc">{desc}</div>
         </div>
       </div>
       <div class="exec-right">
-        <h3>{lbl['key_findings']}</h3>
+        <h3>{lbl["key_findings"]}</h3>
         <div class="findings-list">{findings_html}</div>
       </div>
     </div>
@@ -362,19 +341,19 @@ def _build_kpi_cards(
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-value">{report.total_products}</div>
-        <div class="kpi-label">{lbl['products_analyzed']}</div>
+        <div class="kpi-label">{lbl["products_analyzed"]}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value">{report.total_images}</div>
-        <div class="kpi-label">{lbl['images_analyzed']}</div>
+        <div class="kpi-label">{lbl["images_analyzed"]}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value">{report.has_person_ratio:.1f}%</div>
-        <div class="kpi-label">{lbl['with_person']}</div>
+        <div class="kpi-label">{lbl["with_person"]}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value">{report.has_text_ratio:.1f}%</div>
-        <div class="kpi-label">{lbl['with_text']}</div>
+        <div class="kpi-label">{lbl["with_text"]}</div>
       </div>
     </div>
     """
@@ -388,19 +367,19 @@ def _build_dist_section(
     return f"""
     <div class="section-grid">
       <div class="card">
-        <h2>{lbl['image_type_dist']}</h2>
+        <h2>{lbl["image_type_dist"]}</h2>
         <table class="dist-table">
           {_dist_table_rows(report.image_type_distribution)}
         </table>
       </div>
       <div class="card">
-        <h2>{lbl['angle_dist']}</h2>
+        <h2>{lbl["angle_dist"]}</h2>
         <table class="dist-table">
           {_dist_table_rows(report.angle_distribution)}
         </table>
       </div>
       <div class="card">
-        <h2>{lbl['bg_dist']}</h2>
+        <h2>{lbl["bg_dist"]}</h2>
         <table class="dist-table">
           {_dist_table_rows(report.background_distribution)}
         </table>
@@ -425,14 +404,14 @@ def _build_recommendations(
         items.append(
             f'<li class="rec-item">'
             f'<span class="rec-tag" style="background:{tag_color}10;color:{tag_color}">{tag_label}</span>'
-            f'{html_lib.escape(str(rec))}'
+            f"{html_lib.escape(str(rec))}"
             f"</li>"
         )
 
     return f"""
     <div class="card section-break">
-      <h2>{lbl['recommendations']}</h2>
-      <ol class="rec-list">{''.join(items)}</ol>
+      <h2>{lbl["recommendations"]}</h2>
+      <ol class="rec-list">{"".join(items)}</ol>
     </div>
     """
 
@@ -471,8 +450,7 @@ def _build_product_grid(
         text_label = lbl["yes"] if pa.get("has_text") else lbl["no"]
 
         title_link = (
-            f'<a href="{product_url}" target="_blank" class="card-title">'
-            f'{html_lib.escape(str(pa["title"][:55]))}</a>'
+            f'<a href="{product_url}" target="_blank" class="card-title">{html_lib.escape(str(pa["title"][:55]))}</a>'
             if product_url
             else f'<span class="card-title">{html_lib.escape(str(pa["title"][:55]))}</span>'
         )
@@ -488,9 +466,9 @@ def _build_product_grid(
           <div class="card-info">
             {title_link}
             <div class="card-meta">
-              {f'<span class="meta-price">{price_str}</span>' if price_str else ''}
-              {f'<span class="meta-rating">★ {rating_str}</span>' if rating_str else ''}
-              {f'<span class="meta-reviews">{reviews_str} reviews</span>' if reviews_str else ''}
+              {f'<span class="meta-price">{price_str}</span>' if price_str else ""}
+              {f'<span class="meta-rating">★ {rating_str}</span>' if rating_str else ""}
+              {f'<span class="meta-reviews">{reviews_str} reviews</span>' if reviews_str else ""}
             </div>
             <div class="card-tags">
               <span class="tag tag-type">{type_tag}</span>
@@ -503,9 +481,9 @@ def _build_product_grid(
 
     return f"""
     <div class="section-break">
-      <h2 class="section-title">{lbl['top_products']}</h2>
+      <h2 class="section-title">{lbl["top_products"]}</h2>
       <div class="product-grid">
-        {''.join(cards_html)}
+        {"".join(cards_html)}
       </div>
     </div>
     """
@@ -527,13 +505,14 @@ def _build_lifestyle_section(
 
     return f"""
     <div class="card section-break">
-      <h2>{lbl['lifestyle_images']}</h2>
-      <div class="lifestyle-grid">{''.join(imgs_html)}</div>
+      <h2>{lbl["lifestyle_images"]}</h2>
+      <div class="lifestyle-grid">{"".join(imgs_html)}</div>
     </div>
     """
 
 
 # ── Main Builder ──────────────────────────────────────────────────────────────
+
 
 def build_html_report(
     report: "CategoryVisualReport",
@@ -588,7 +567,7 @@ def build_html_report(
         <div class="header-tagline">Visual Intelligence</div>
       </div>
       <div class="header-right">
-        <div class="header-meta">{lbl['subtitle']}</div>
+        <div class="header-meta">{lbl["subtitle"]}</div>
       </div>
     </header>
 
@@ -596,7 +575,7 @@ def build_html_report(
     <div class="report-header">
       <h1 class="report-title">{title}</h1>
       <p class="report-keyword">"{html_lib.escape(report.keyword)}"</p>
-      <p class="report-date">{lbl['generated']}: {now}</p>
+      <p class="report-date">{lbl["generated"]}: {now}</p>
     </div>
 
     <!-- Executive Summary -->
@@ -618,13 +597,14 @@ def build_html_report(
     {lifestyle_section}
 
     <!-- Footer -->
-    <footer class="site-footer">{lbl['footer']}</footer>
+    <footer class="site-footer">{lbl["footer"]}</footer>
   </div>
 </body>
 </html>"""
 
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
+
 
 def _get_css() -> str:
     return """

@@ -53,7 +53,7 @@ def _get_base_url(region: str = "sg") -> str:
 
 # ── JavaScript extraction for search results ──────────────────────────────────
 
-_JS_SEARCH_RESULTS = r'''() => {
+_JS_SEARCH_RESULTS = r"""() => {
     const items = document.querySelectorAll('[data-sqe="item"]');
     if (items.length === 0) {
         // Fallback: try the search result card pattern
@@ -99,11 +99,11 @@ _JS_SEARCH_RESULTS = r'''() => {
         const soldCount = soldMatch ? parseInt(soldMatch[1]) : 0;
         return { href, title, price, imageUrl, rating, soldCount };
     }).filter(item => item.title);
-}'''
+}"""
 
 # ── JavaScript extraction for product page images ─────────────────────────────
 
-_JS_PRODUCT_PAGE = r'''() => {
+_JS_PRODUCT_PAGE = r"""() => {
     const title = document.querySelector('[class*="title"], .qaNIZv, h1')?.textContent?.trim() || '';
 
     // Price
@@ -165,7 +165,7 @@ _JS_PRODUCT_PAGE = r'''() => {
         title, price, rating, reviewsCount, soldCount, shopName,
         imageUrls: hiResUrls,
     };
-}'''
+}"""
 
 
 def _extract_shopee_id_from_url(url: str) -> str:
@@ -289,9 +289,7 @@ class Shopee:
             for i, sr in enumerate(unique):
                 href = sr.get("href", "")
                 full_url = href if href.startswith("http") else f"{base_url}{href}"
-                futures[executor.submit(
-                    Shopee.product, full_url, region=region, headless=headless
-                )] = (i, sr)
+                futures[executor.submit(Shopee.product, full_url, region=region, headless=headless)] = (i, sr)
                 time.sleep(0.5)  # stagger submissions
 
             for future in as_completed(futures):
@@ -301,7 +299,10 @@ class Shopee:
                     products.append(product)
                     logger.info(
                         "[%d/%d] %s... (%d images)",
-                        i + 1, total, product.title[:60], len(product.images),
+                        i + 1,
+                        total,
+                        product.title[:60],
+                        len(product.images),
                     )
                 except Exception as e:
                     logger.warning("[%d/%d] FAILED: %s", i + 1, total, e)

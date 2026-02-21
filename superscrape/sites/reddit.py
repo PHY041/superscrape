@@ -5,7 +5,7 @@ from __future__ import annotations
 from superscrape.core.browser import fresh_browser
 from superscrape.output.models import RedditPost
 
-_JS_POSTS = r'''() => {
+_JS_POSTS = r"""() => {
     // Reddit's old.reddit.com is easier to parse
     const posts = [...document.querySelectorAll(".thing.link")].map(el => {
         const id = (el.getAttribute("data-fullname") || "").replace("t3_", "");
@@ -33,7 +33,7 @@ _JS_POSTS = r'''() => {
         };
     });
     return posts;
-}'''
+}"""
 
 
 class Reddit:
@@ -57,9 +57,7 @@ class Reddit:
 
             items = page.evaluate(_JS_POSTS)
             for item in items:
-                all_posts.append(
-                    RedditPost(subreddit=name, **item)
-                )
+                all_posts.append(RedditPost(subreddit=name, **item))
                 if len(all_posts) >= limit:
                     break
 

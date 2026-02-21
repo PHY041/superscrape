@@ -13,12 +13,8 @@ from superscrape.output.models import ImageAnalysis, ScrapedItem
 
 logger = logging.getLogger(__name__)
 
-_ECOMMERCE_PLATFORMS = frozenset(
-    {"amazon", "shopee", "tiktok_shop", "lazada", "temu", "ebay", "walmart", "etsy"}
-)
-_SOCIAL_PLATFORMS = frozenset(
-    {"instagram", "pinterest", "tiktok", "xiaohongshu"}
-)
+_ECOMMERCE_PLATFORMS = frozenset({"amazon", "shopee", "tiktok_shop", "lazada", "temu", "ebay", "walmart", "etsy"})
+_SOCIAL_PLATFORMS = frozenset({"instagram", "pinterest", "tiktok", "xiaohongshu"})
 
 _ECOMMERCE_PROMPT = """You are an expert ecommerce product photographer and listing optimization consultant.
 Analyze the given product image and classify it precisely.
@@ -54,10 +50,7 @@ _client: OpenAI | None = None
 def validate_api_key() -> None:
     """Validate that OPENAI_API_KEY is set. Call at CLI startup."""
     if not os.environ.get("OPENAI_API_KEY"):
-        raise EnvironmentError(
-            "OPENAI_API_KEY is not set. Export it before running: "
-            "export OPENAI_API_KEY=sk-..."
-        )
+        raise EnvironmentError("OPENAI_API_KEY is not set. Export it before running: export OPENAI_API_KEY=sk-...")
 
 
 def _get_client() -> OpenAI:
@@ -65,10 +58,7 @@ def _get_client() -> OpenAI:
     if _client is None:
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            raise EnvironmentError(
-                "OPENAI_API_KEY is not set. Export it before running: "
-                "export OPENAI_API_KEY=sk-..."
-            )
+            raise EnvironmentError("OPENAI_API_KEY is not set. Export it before running: export OPENAI_API_KEY=sk-...")
         _client = OpenAI(api_key=api_key)
     return _client
 
@@ -152,9 +142,7 @@ def batch_analyze_first_images(
         try:
             platform = item.platform or "amazon"
             analysis = analyze_image(img_url, platform=platform)
-            analyses.append(
-                analysis.model_copy(update={"item_id": item.item_id, "asin": item.item_id})
-            )
+            analyses.append(analysis.model_copy(update={"item_id": item.item_id, "asin": item.item_id}))
             logger.info("Analyzed [%d/%d] %s...", i + 1, len(items), item.title[:50])
         except Exception as e:
             logger.warning("Failed [%d/%d]: %s", i + 1, len(items), e)
@@ -196,17 +184,23 @@ def batch_analyze_all_images(
         for j, img_url in enumerate(urls):
             try:
                 analysis = analyze_image(img_url, platform=platform)
-                analyses.append(
-                    analysis.model_copy(update={"item_id": item.item_id, "asin": item.item_id})
-                )
+                analyses.append(analysis.model_copy(update={"item_id": item.item_id, "asin": item.item_id}))
                 img_count += 1
                 logger.info(
                     "Analyzed [%d/%d] img %d/%d %s...",
-                    i + 1, total_items, j + 1, len(urls), item.title[:40],
+                    i + 1,
+                    total_items,
+                    j + 1,
+                    len(urls),
+                    item.title[:40],
                 )
             except Exception as e:
                 logger.warning(
-                    "Failed [%d/%d] img %d: %s", i + 1, total_items, j + 1, e,
+                    "Failed [%d/%d] img %d: %s",
+                    i + 1,
+                    total_items,
+                    j + 1,
+                    e,
                 )
 
     logger.info("Total images analyzed: %d across %d products", img_count, total_items)
