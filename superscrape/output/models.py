@@ -40,6 +40,16 @@ class ScrapedItem(BaseModel):
         return self.images[0].hi_res_url if self.images else None
 
 
+class AplusImage(BaseModel):
+    """An A+ / Enhanced Brand Content image."""
+
+    url: str
+    module_type: str = ""  # e.g. "standard-image", "comparison", "brand-story"
+    alt_text: str = ""
+    width: int = 0
+    height: int = 0
+
+
 class AmazonProduct(ScrapedItem):
     platform: str = "amazon"
     asin: str = ""
@@ -48,6 +58,8 @@ class AmazonProduct(ScrapedItem):
     brand: str = ""
     category: str = ""
     bsr: str = ""
+    aplus_images: list[AplusImage] = []
+    reviews: list[Review] = []
 
     @model_validator(mode="after")
     def _sync_ids_and_parse_price(self) -> "AmazonProduct":
@@ -139,6 +151,9 @@ class ImageAnalysis(BaseModel):
     background: str = ""  # white, scene, studio, outdoor
     dominant_colors: list[str] = []
     description: str = ""
+    selling_point_angle: str = ""  # feature_highlight, benefit_demo, social_proof, etc.
+    info_hierarchy: str = ""  # product_hero, primary_feature, secondary_detail, etc.
+    text_coverage_pct: int = 0  # 0-100% of image area covered by text/graphics
     confidence: float | None = None
 
     @model_validator(mode="after")

@@ -152,7 +152,48 @@ def _run_pipeline_sync(job_id: str, req: JobRequest) -> None:
             logger.warning("PDF export failed for job %s: %s", job_id, exc)
             pdf_url = None
 
+        # ── Step 5: Strategy Generation ──────────────────────────────
+        _emit(job_id, PipelineStep.building_report, "Generating action plan & A/B tests...", 95, platform=pval)
+
+        action_plan: list = []
+        ab_tests: list = []
+        seasonal_alerts: list = []
+        review_insights: dict = {}
+        story_arc: dict = {}
+        try:
+            from api.services.review_analyzer import analyze_reviews
+            from api.services.seasonal import get_seasonal_alerts
+            from api.services.story_arc import design_story_arc
+            from api.services.strategy_gen import generate_ab_tests, generate_action_plan
+
+            review_insights = analyze_reviews(products)
+            action_plan = generate_action_plan(report, products)
+            ab_tests = generate_ab_tests(report, products)
+            seasonal_alerts = get_seasonal_alerts(keyword)
+            story_arc = design_story_arc(report, products, review_insights)
+            logger.info(
+                "Strategy gen done: %d phases, %d tests, %d alerts, %d pain points, story arc=%s",
+                len(action_plan), len(ab_tests), len(seasonal_alerts),
+                len(review_insights.get("pain_points", [])),
+                story_arc.get("story_arc_name", "none"),
+            )
+        except Exception as exc:
+            logger.warning("Strategy generation failed (non-fatal): %s", exc)
+
         _emit(job_id, PipelineStep.building_report, "Finalising report...", 98, platform=pval)
+
+        # Persist structured data for the /data endpoint
+        store.save_data(
+            job_id,
+            products=products,
+            analyses=analyses,
+            report=report,
+            action_plan=action_plan,
+            ab_tests=ab_tests,
+            seasonal_alerts=seasonal_alerts,
+            review_insights=review_insights,
+            story_arc=story_arc,
+        )
 
         report_url = f"/reports/{job_id}/html"
         store.mark_done(job_id, report_url=report_url, pdf_url=pdf_url)

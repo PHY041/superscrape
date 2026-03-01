@@ -17,11 +17,38 @@ logger = logging.getLogger(__name__)
 _SENTINEL = object()
 
 
+class JobData:
+    """Container for pipeline output data (products, analyses, report, strategy)."""
+
+    __slots__ = ("products", "analyses", "report", "action_plan", "ab_tests", "seasonal_alerts", "review_insights", "story_arc")
+
+    def __init__(
+        self,
+        products: list,
+        analyses: list,
+        report: object | None = None,
+        action_plan: list | None = None,
+        ab_tests: list | None = None,
+        seasonal_alerts: list | None = None,
+        review_insights: dict | None = None,
+        story_arc: dict | None = None,
+    ) -> None:
+        self.products = products
+        self.analyses = analyses
+        self.report = report
+        self.action_plan = action_plan or []
+        self.ab_tests = ab_tests or []
+        self.seasonal_alerts = seasonal_alerts or []
+        self.review_insights = review_insights or {}
+        self.story_arc = story_arc or {}
+
+
 class JobStore:
     """Thread-safe in-memory store for job state and SSE subscribers."""
 
     def __init__(self) -> None:
         self._jobs: dict[str, JobStatus] = {}
+        self._data: dict[str, JobData] = {}
         # Each job can have multiple SSE subscribers; each gets its own queue
         self._subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
         self._lock = threading.Lock()  # thread-safe for cross-thread access
@@ -112,6 +139,35 @@ class JobStore:
             for q in list(self._subscribers[job_id]):
                 q.put_nowait(fail_event)
                 q.put_nowait(_SENTINEL)
+
+    def save_data(
+        self,
+        job_id: str,
+        products: list,
+        analyses: list,
+        report: object | None = None,
+        action_plan: list | None = None,
+        ab_tests: list | None = None,
+        seasonal_alerts: list | None = None,
+        review_insights: dict | None = None,
+        story_arc: dict | None = None,
+    ) -> None:
+        """Store structured pipeline output for later retrieval via /data endpoint."""
+        with self._lock:
+            self._data[job_id] = JobData(
+                products=products,
+                analyses=analyses,
+                report=report,
+                action_plan=action_plan,
+                ab_tests=ab_tests,
+                seasonal_alerts=seasonal_alerts,
+                review_insights=review_insights,
+                story_arc=story_arc,
+            )
+
+    def get_data(self, job_id: str) -> JobData | None:
+        """Return stored pipeline data, or None if not available."""
+        return self._data.get(job_id)
 
     async def subscribe(self, job_id: str) -> AsyncIterator[ProgressEvent]:
         """Async generator that yields ProgressEvents as they arrive.

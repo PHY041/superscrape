@@ -27,6 +27,9 @@ Return a JSON object with these fields:
 - background: one of "white", "solid_color", "studio", "outdoor", "indoor", "transparent"
 - dominant_colors: list of 2-3 main colors (e.g. ["white", "blue", "silver"])
 - description: one sentence describing what the image shows
+- selling_point_angle: one of "feature_highlight", "benefit_demo", "social_proof", "comparison", "unboxing", "lifestyle_aspiration", "technical_spec", "none"
+- info_hierarchy: one of "product_hero", "primary_feature", "secondary_detail", "context_scene", "data_table", "social_validation"
+- text_coverage_pct: integer 0-100 estimating what percentage of the image area is covered by text/graphics overlays
 
 Return ONLY valid JSON, no markdown fences."""
 
@@ -89,7 +92,7 @@ def analyze_image(image_url: str, platform: str = "amazon") -> ImageAnalysis:
                 },
             ],
             temperature=0.1,
-            max_completion_tokens=300,
+            max_completion_tokens=500,
         )
         return resp.choices[0].message.content.strip()
 
@@ -122,6 +125,9 @@ def analyze_image(image_url: str, platform: str = "amazon") -> ImageAnalysis:
         background=data.get("background", "unknown"),
         dominant_colors=data.get("dominant_colors", []),
         description=data.get("description", ""),
+        selling_point_angle=data.get("selling_point_angle", ""),
+        info_hierarchy=data.get("info_hierarchy", ""),
+        text_coverage_pct=data.get("text_coverage_pct", 0),
         confidence=confidence,
     )
 

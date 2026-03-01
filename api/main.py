@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.routes.exports import router as exports_router
 from api.routes.jobs import router as jobs_router
+from api.routes.monitor import router as monitor_router
 from api.routes.reports import router as reports_router
+from api.routes.uploads import router as uploads_router
 from api.services.job_runner import runner
 
 logging.basicConfig(
@@ -54,6 +62,9 @@ app.add_middleware(
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(jobs_router)
 app.include_router(reports_router)
+app.include_router(uploads_router)
+app.include_router(exports_router)
+app.include_router(monitor_router)
 
 
 @app.get("/health", tags=["meta"])
