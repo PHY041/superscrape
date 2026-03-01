@@ -1,17 +1,27 @@
-"""In-memory job store with SSE subscriber pattern."""
+"""Job store with SSE subscriber pattern + file-based persistence.
+
+Jobs and their data are persisted to disk as JSON files so they survive
+server restarts. The SSE subscriber pattern remains fully in-memory
+(queues are ephemeral by nature).
+"""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import threading
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import AsyncIterator
 
 from api.models.api_models import JobStatus, PipelineStep, ProgressEvent
 
 logger = logging.getLogger(__name__)
+
+_PERSIST_DIR = Path(os.environ.get("JOB_STORE_DIR", "/tmp/superscrape_jobs"))
 
 # Sentinel pushed to subscriber queues when the job terminates
 _SENTINEL = object()
@@ -43,8 +53,19 @@ class JobData:
         self.story_arc = story_arc or {}
 
 
+def _serialize_report(report: object) -> dict | None:
+    """Serialize a report object to a dict for JSON persistence."""
+    if report is None:
+        return None
+    if hasattr(report, "model_dump"):
+        return report.model_dump()
+    if isinstance(report, dict):
+        return report
+    return None
+
+
 class JobStore:
-    """Thread-safe in-memory store for job state and SSE subscribers."""
+    """Thread-safe store for job state and SSE subscribers with file persistence."""
 
     def __init__(self) -> None:
         self._jobs: dict[str, JobStatus] = {}
@@ -53,10 +74,100 @@ class JobStore:
         self._subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
         self._lock = threading.Lock()  # thread-safe for cross-thread access
 
+        # Load persisted jobs on startup
+        self._load_persisted()
+
+    def _load_persisted(self) -> None:
+        """Load completed jobs from disk on startup."""
+        if not _PERSIST_DIR.exists():
+            return
+
+        status_dir = _PERSIST_DIR / "status"
+        if not status_dir.exists():
+            return
+
+        loaded = 0
+        for f in status_dir.glob("*.json"):
+            try:
+                raw = json.loads(f.read_text(encoding="utf-8"))
+                job_id = raw["job_id"]
+                self._jobs[job_id] = JobStatus(**raw)
+
+                # Load data if available
+                data_file = _PERSIST_DIR / "data" / f"{job_id}.json"
+                if data_file.exists():
+                    data_raw = json.loads(data_file.read_text(encoding="utf-8"))
+                    self._data[job_id] = JobData(
+                        products=data_raw.get("products", []),
+                        analyses=data_raw.get("analyses", []),
+                        report=data_raw.get("report"),
+                        action_plan=data_raw.get("action_plan", []),
+                        ab_tests=data_raw.get("ab_tests", []),
+                        seasonal_alerts=data_raw.get("seasonal_alerts", []),
+                        review_insights=data_raw.get("review_insights", {}),
+                        story_arc=data_raw.get("story_arc", {}),
+                    )
+                loaded += 1
+            except Exception as e:
+                logger.warning("Failed to load persisted job %s: %s", f.name, e)
+
+        if loaded:
+            logger.info("Loaded %d persisted jobs from %s", loaded, _PERSIST_DIR)
+
+    def _persist_status(self, job_id: str) -> None:
+        """Write job status to disk."""
+        try:
+            status_dir = _PERSIST_DIR / "status"
+            status_dir.mkdir(parents=True, exist_ok=True)
+            status = self._jobs.get(job_id)
+            if status:
+                path = status_dir / f"{job_id}.json"
+                path.write_text(
+                    json.dumps(status.model_dump(), default=str, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+        except Exception as e:
+            logger.warning("Failed to persist status for %s: %s", job_id, e)
+
+    def _persist_data(self, job_id: str) -> None:
+        """Write job data to disk."""
+        try:
+            data_dir = _PERSIST_DIR / "data"
+            data_dir.mkdir(parents=True, exist_ok=True)
+            data = self._data.get(job_id)
+            if data is None:
+                return
+
+            serialized = {
+                "products": [
+                    p.model_dump() if hasattr(p, "model_dump") else p
+                    for p in data.products
+                ],
+                "analyses": [
+                    a.model_dump() if hasattr(a, "model_dump") else a
+                    for a in data.analyses
+                ],
+                "report": _serialize_report(data.report),
+                "action_plan": data.action_plan,
+                "ab_tests": data.ab_tests,
+                "seasonal_alerts": data.seasonal_alerts,
+                "review_insights": data.review_insights,
+                "story_arc": data.story_arc,
+            }
+
+            path = data_dir / f"{job_id}.json"
+            path.write_text(
+                json.dumps(serialized, default=str, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            logger.warning("Failed to persist data for %s: %s", job_id, e)
+
     def create(self, job_id: str) -> JobStatus:
         """Create a new job and return the initial status."""
         status = JobStatus(job_id=job_id)
         self._jobs[job_id] = status
+        self._persist_status(job_id)
         return status
 
     def get(self, job_id: str) -> JobStatus | None:
@@ -113,6 +224,8 @@ class JobStore:
                 q.put_nowait(done_event)
                 q.put_nowait(_SENTINEL)
 
+        self._persist_status(job_id)
+
     def mark_failed(self, job_id: str, error: str) -> None:
         """Mark a job as failed and terminate all subscriber streams."""
         with self._lock:
@@ -140,6 +253,8 @@ class JobStore:
                 q.put_nowait(fail_event)
                 q.put_nowait(_SENTINEL)
 
+        self._persist_status(job_id)
+
     def save_data(
         self,
         job_id: str,
@@ -164,10 +279,20 @@ class JobStore:
                 review_insights=review_insights,
                 story_arc=story_arc,
             )
+        self._persist_data(job_id)
 
     def get_data(self, job_id: str) -> JobData | None:
         """Return stored pipeline data, or None if not available."""
         return self._data.get(job_id)
+
+    def list_jobs(self, limit: int = 50) -> list[JobStatus]:
+        """Return recent jobs, newest first."""
+        jobs = sorted(
+            self._jobs.values(),
+            key=lambda j: j.created_at,
+            reverse=True,
+        )
+        return jobs[:limit]
 
     async def subscribe(self, job_id: str) -> AsyncIterator[ProgressEvent]:
         """Async generator that yields ProgressEvents as they arrive.

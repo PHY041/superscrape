@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useJobProgress } from "@/hooks/useJobProgress";
 import ProgressTracker from "@/components/ProgressTracker";
 import ReportViewer from "@/components/ReportViewer";
+import DataDashboard from "@/components/DataDashboard";
 
 export default function JobPage() {
   const params = useParams<{ jobId: string }>();
@@ -13,7 +14,7 @@ export default function JobPage() {
     useJobProgress(jobId);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-xl font-semibold text-slate-900 mb-1">
@@ -38,7 +39,7 @@ export default function JobPage() {
       {isDone && (
         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
           <p className="text-sm font-medium text-green-700">
-            Report ready — scroll down to view or download the PDF.
+            Report ready — explore the intelligence dashboard below.
           </p>
         </div>
       )}
@@ -57,7 +58,10 @@ export default function JobPage() {
         </div>
       )}
 
-      {/* Report viewer */}
+      {/* Data Dashboard — review insights, story arc, action plan, A/B tests */}
+      {isDone && <DataDashboard jobId={jobId} />}
+
+      {/* HTML Report viewer */}
       {isDone && reportUrl && (
         <ReportViewer reportUrl={reportUrl} pdfUrl={pdfUrl} />
       )}

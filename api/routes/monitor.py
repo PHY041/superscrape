@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from api.models.api_models import JobRequest, Platform
 from api.services.ab_tracker import TestMetric, TestStatus, ab_tracker
 from api.services.agent_signals import AgentRole, SignalType, signal_bus
 from api.services.batch_asin import batch_manager
 from api.services.competitor_monitor import monitor
+from api.services.job_runner import runner
+from api.services.job_store import store
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["advanced"])
 
 
@@ -31,6 +38,22 @@ async def remove_watch(asin: str) -> dict:
     """Remove an ASIN from the watchlist."""
     monitor.remove_asin(asin)
     return {"watchlist": monitor.get_watchlist()}
+
+
+class MonitorActivateRequest(BaseModel):
+    interval_hours: int = 24
+
+
+@router.post("/monitor/activate")
+async def activate_monitor(req: MonitorActivateRequest) -> dict:
+    """Activate periodic competitor monitoring."""
+    return await monitor.activate(interval_hours=req.interval_hours)
+
+
+@router.post("/monitor/deactivate")
+async def deactivate_monitor() -> dict:
+    """Stop periodic competitor monitoring."""
+    return await monitor.deactivate()
 
 
 @router.get("/monitor/status")
@@ -85,16 +108,46 @@ async def asin_history(asin: str) -> dict:
 class BatchRequest(BaseModel):
     asins: list[str] = Field(..., min_length=1, max_length=50)
     keyword: str = ""
+    platform: str = "amazon"
+    top_n: int = 10
 
 
 @router.post("/batch")
 async def create_batch(req: BatchRequest) -> dict:
-    """Create a batch job for multiple ASINs."""
+    """Create a batch job for multiple ASINs.
+
+    Each ASIN gets its own scrape job enqueued into the pipeline.
+    Progress is tracked per-ASIN within the batch.
+    """
     batch = batch_manager.create_batch(req.asins, req.keyword)
+
+    # Enqueue a scrape job per ASIN
+    import uuid
+
+    platform = Platform(req.platform) if req.platform in Platform.__members__ else Platform.amazon
+    for task in batch.asins:
+        job_id = str(uuid.uuid4())
+        store.create(job_id)
+        job_req = JobRequest(
+            query=task.asin,
+            platform=platform,
+            top_n=req.top_n,
+        )
+        await runner.enqueue(job_id, job_req)
+        batch_manager.update_asin_status(
+            batch.batch_id, task.asin, status="scraping", job_id=job_id,
+        )
+        logger.info("Batch %s: enqueued ASIN %s as job %s", batch.batch_id, task.asin, job_id)
+
+    batch.status = batch_manager.get_batch(batch.batch_id).status  # type: ignore
     return {
         "batch_id": batch.batch_id,
         "total": batch.total,
-        "status": batch.status.value,
+        "status": "running",
+        "jobs": [
+            {"asin": t.asin, "job_id": t.job_id}
+            for t in batch_manager.get_batch(batch.batch_id).asins  # type: ignore
+        ],
     }
 
 

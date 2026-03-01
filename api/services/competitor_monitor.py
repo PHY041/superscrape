@@ -5,18 +5,23 @@ Periodically scrapes competitor ASINs and detects changes in:
 - Rating/review count shifts
 - New image additions or removals
 
-Requires a scheduling system (cron/APScheduler) for daily runs.
+Uses asyncio background task for periodic scheduling.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_PERSIST_DIR = Path(os.environ.get("MONITOR_DIR", "/tmp/superscrape_monitor"))
 
 
 @dataclass
@@ -60,17 +65,65 @@ class MonitorConfig:
 class CompetitorMonitor:
     """Track competitor listing changes over time.
 
-    Current status: STUB — provides interface and in-memory storage.
-    Production implementation needs:
-    1. Persistent storage (Supabase/SQLite) for snapshots
-    2. APScheduler or cron for periodic scraping
-    3. Notification system (email/webhook) for alerts
+    Provides persistent watchlist, snapshot diffing, and async scheduling
+    for periodic scraping of competitor ASINs.
     """
 
     def __init__(self) -> None:
         self._snapshots: dict[str, list[ListingSnapshot]] = {}
         self._changes: list[ListingChange] = []
         self._config = MonitorConfig()
+        self._scheduler_task: asyncio.Task | None = None
+        self._load_persisted()
+
+    def _load_persisted(self) -> None:
+        """Load watchlist and snapshots from disk."""
+        config_path = _PERSIST_DIR / "config.json"
+        if config_path.exists():
+            try:
+                raw = json.loads(config_path.read_text(encoding="utf-8"))
+                self._config.asins = raw.get("asins", [])
+                self._config.active = raw.get("active", False)
+                self._config.check_interval_hours = raw.get("check_interval_hours", 24)
+                logger.info("Loaded monitor config: %d ASINs", len(self._config.asins))
+            except Exception as e:
+                logger.warning("Failed to load monitor config: %s", e)
+
+        snapshots_path = _PERSIST_DIR / "snapshots.json"
+        if snapshots_path.exists():
+            try:
+                raw = json.loads(snapshots_path.read_text(encoding="utf-8"))
+                for asin, snaps in raw.items():
+                    self._snapshots[asin] = [ListingSnapshot(**s) for s in snaps]
+                logger.info("Loaded %d ASIN snapshot histories", len(self._snapshots))
+            except Exception as e:
+                logger.warning("Failed to load snapshots: %s", e)
+
+    def _persist(self) -> None:
+        """Save config and snapshots to disk."""
+        try:
+            _PERSIST_DIR.mkdir(parents=True, exist_ok=True)
+
+            config_path = _PERSIST_DIR / "config.json"
+            config_path.write_text(json.dumps({
+                "asins": self._config.asins,
+                "active": self._config.active,
+                "check_interval_hours": self._config.check_interval_hours,
+            }), encoding="utf-8")
+
+            snapshots_path = _PERSIST_DIR / "snapshots.json"
+            serialized = {}
+            for asin, snaps in self._snapshots.items():
+                serialized[asin] = [
+                    {"asin": s.asin, "captured_at": s.captured_at, "title": s.title,
+                     "price": s.price, "rating": s.rating, "reviews_count": s.reviews_count,
+                     "image_count": s.image_count, "image_hash": s.image_hash,
+                     "has_aplus": s.has_aplus, "brand": s.brand}
+                    for s in snaps[-20:]  # keep last 20 snapshots per ASIN
+                ]
+            snapshots_path.write_text(json.dumps(serialized), encoding="utf-8")
+        except Exception as e:
+            logger.warning("Failed to persist monitor data: %s", e)
 
     @property
     def is_active(self) -> bool:
@@ -80,12 +133,14 @@ class CompetitorMonitor:
         """Add an ASIN to the monitoring watchlist."""
         if asin not in self._config.asins:
             self._config.asins.append(asin)
+            self._persist()
             logger.info("Added ASIN %s to monitor watchlist", asin)
 
     def remove_asin(self, asin: str) -> None:
         """Remove an ASIN from the watchlist."""
         if asin in self._config.asins:
             self._config.asins.remove(asin)
+            self._persist()
 
     def take_snapshot(self, asin: str, product_data: dict) -> ListingSnapshot:
         """Create a snapshot from current product data."""
@@ -113,6 +168,7 @@ class CompetitorMonitor:
         if asin not in self._snapshots:
             self._snapshots[asin] = []
         self._snapshots[asin].append(snapshot)
+        self._persist()
 
         return snapshot
 
@@ -189,7 +245,93 @@ class CompetitorMonitor:
             "total_snapshots": sum(len(v) for v in self._snapshots.values()),
             "total_changes_detected": len(self._changes),
             "check_interval_hours": self._config.check_interval_hours,
+            "scheduler_running": self._scheduler_task is not None
+            and not self._scheduler_task.done(),
         }
+
+    async def activate(self, interval_hours: int | None = None) -> dict:
+        """Activate periodic monitoring scheduler."""
+        if interval_hours is not None:
+            self._config.check_interval_hours = interval_hours
+        self._config.active = True
+        self._persist()
+
+        if self._scheduler_task is None or self._scheduler_task.done():
+            self._scheduler_task = asyncio.create_task(self._scheduler_loop())
+            logger.info(
+                "Monitor scheduler started — interval %dh, %d ASINs",
+                self._config.check_interval_hours,
+                len(self._config.asins),
+            )
+
+        return self.get_status()
+
+    async def deactivate(self) -> dict:
+        """Stop the monitoring scheduler."""
+        self._config.active = False
+        self._persist()
+
+        if self._scheduler_task and not self._scheduler_task.done():
+            self._scheduler_task.cancel()
+            try:
+                await self._scheduler_task
+            except asyncio.CancelledError:
+                pass
+            self._scheduler_task = None
+            logger.info("Monitor scheduler stopped")
+
+        return self.get_status()
+
+    async def _scheduler_loop(self) -> None:
+        """Background loop that scrapes watched ASINs at the configured interval."""
+        while self._config.active:
+            try:
+                await self._run_check_cycle()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error("Monitor check cycle failed: %s", e)
+
+            sleep_secs = self._config.check_interval_hours * 3600
+            try:
+                await asyncio.sleep(sleep_secs)
+            except asyncio.CancelledError:
+                raise
+
+    async def _run_check_cycle(self) -> None:
+        """Scrape each watched ASIN and detect changes."""
+        if not self._config.asins:
+            return
+
+        logger.info("Monitor cycle: checking %d ASINs", len(self._config.asins))
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        from superscrape.sites.amazon import AmazonScraper
+
+        loop = asyncio.get_running_loop()
+        for asin in list(self._config.asins):
+            try:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    product = await loop.run_in_executor(
+                        pool, lambda a=asin: AmazonScraper().product(a),
+                    )
+                if product is None:
+                    logger.warning("Monitor: failed to scrape ASIN %s", asin)
+                    continue
+
+                product_data = product.model_dump() if hasattr(product, "model_dump") else {}
+                self.take_snapshot(asin, product_data)
+                changes = self.detect_changes(asin)
+                if changes:
+                    logger.info(
+                        "Monitor: %d changes detected for ASIN %s",
+                        len(changes), asin,
+                    )
+            except Exception as e:
+                logger.warning("Monitor: error checking ASIN %s: %s", asin, e)
+
+        logger.info("Monitor cycle complete")
 
 
 # Module-level singleton

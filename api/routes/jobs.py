@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
+@router.get("")
+async def list_jobs(limit: int = 50) -> dict:
+    """List recent jobs, newest first."""
+    jobs = store.list_jobs(limit=limit)
+    return {
+        "total": len(jobs),
+        "jobs": [j.model_dump() for j in jobs],
+    }
+
+
 @router.post("", status_code=202, response_model=JobStatus)
 async def create_job(req: JobRequest) -> JobStatus:
     """Create a new scraping job and enqueue it for processing.
