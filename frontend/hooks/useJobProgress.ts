@@ -44,81 +44,121 @@ export function useJobProgress(jobId: string): ProgressState {
   useEffect(() => {
     if (!jobId) return;
 
-    const es = new EventSource(`/api/proxy/jobs/${jobId}/stream`);
-    esRef.current = es;
+    let cancelled = false;
 
-    es.onmessage = (event) => {
+    // First poll the job status — if already done/failed, skip SSE
+    async function init() {
       try {
-        const data = JSON.parse(event.data) as {
-          step: PipelineStep;
-          message: string;
-          progress: number;
-          detail: Record<string, unknown>;
-        };
+        const res = await fetch(`/api/proxy/jobs/${jobId}`);
+        if (!res.ok) throw new Error("Job not found");
+        const job = await res.json();
 
-        const isDone = data.step === "done";
-        const isFailed = data.step === "failed";
+        if (cancelled) return;
 
-        const reportUrl =
-          isDone && typeof data.detail?.report_url === "string"
-            ? `/api/proxy${data.detail.report_url}`
-            : null;
-
-        const pdfUrl =
-          isDone && typeof data.detail?.pdf_url === "string" && data.detail.pdf_url !== ""
-            ? `/api/proxy${data.detail.pdf_url}`
-            : null;
-
-        const errorMessage =
-          isFailed && typeof data.detail?.error === "string"
-            ? (data.detail.error as string)
-            : isFailed
-            ? data.message
-            : null;
-
-        setState((prev) => {
-          // Extract platform from detail (sent on first scraping event)
-          const platform =
-            typeof data.detail?.platform === "string"
-              ? data.detail.platform
-              : prev.platform;
-
-          return {
-            step: data.step,
-            message: data.message,
-            progress: data.progress,
-            detail: data.detail,
+        if (job.step === "done" || job.step === "failed") {
+          const isDone = job.step === "done";
+          const isFailed = job.step === "failed";
+          setState({
+            step: job.step,
+            message: job.message || (isDone ? "Report ready" : "Pipeline failed"),
+            progress: isDone ? 100 : 0,
+            detail: {},
             isDone,
             isFailed,
-            reportUrl,
-            pdfUrl,
-            errorMessage,
-            platform,
-          };
-        });
-
-        if (isDone || isFailed) {
-          es.close();
+            reportUrl: isDone && job.report_url ? `/api/proxy${job.report_url}` : null,
+            pdfUrl: isDone && job.pdf_url ? `/api/proxy${job.pdf_url}` : null,
+            errorMessage: isFailed ? (job.error || job.message) : null,
+            platform: "amazon",
+          });
+          return; // No need for SSE
         }
       } catch {
-        // Ignore parse errors for malformed events
+        // Fall through to SSE
       }
-    };
 
-    es.onerror = () => {
-      es.close();
-      setState((prev) => {
-        if (prev.isDone || prev.isFailed) return prev;
-        return {
-          ...prev,
-          isFailed: true,
-          errorMessage: "Lost connection to server. Please refresh.",
-        };
-      });
-    };
+      if (cancelled) return;
+      connectSSE();
+    }
+
+    function connectSSE() {
+      const es = new EventSource(`/api/proxy/jobs/${jobId}/stream`);
+      esRef.current = es;
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as {
+            step: PipelineStep;
+            message: string;
+            progress: number;
+            detail: Record<string, unknown>;
+          };
+
+          const isDone = data.step === "done";
+          const isFailed = data.step === "failed";
+
+          const reportUrl =
+            isDone && typeof data.detail?.report_url === "string"
+              ? `/api/proxy${data.detail.report_url}`
+              : null;
+
+          const pdfUrl =
+            isDone && typeof data.detail?.pdf_url === "string" && data.detail.pdf_url !== ""
+              ? `/api/proxy${data.detail.pdf_url}`
+              : null;
+
+          const errorMessage =
+            isFailed && typeof data.detail?.error === "string"
+              ? (data.detail.error as string)
+              : isFailed
+              ? data.message
+              : null;
+
+          setState((prev) => {
+            const platform =
+              typeof data.detail?.platform === "string"
+                ? data.detail.platform
+                : prev.platform;
+
+            return {
+              step: data.step,
+              message: data.message,
+              progress: data.progress,
+              detail: data.detail,
+              isDone,
+              isFailed,
+              reportUrl,
+              pdfUrl,
+              errorMessage,
+              platform,
+            };
+          });
+
+          if (isDone || isFailed) {
+            es.close();
+          }
+        } catch {
+          // Ignore parse errors for malformed events
+        }
+      };
+
+      es.onerror = () => {
+        es.close();
+        setState((prev) => {
+          if (prev.isDone || prev.isFailed) return prev;
+          return {
+            ...prev,
+            isFailed: true,
+            errorMessage: "Lost connection to server. Please refresh.",
+          };
+        });
+      };
+    }
+
+    init();
 
     return () => {
-      es.close();
+      cancelled = true;
+      esRef.current?.close();
     };
   }, [jobId]);
 

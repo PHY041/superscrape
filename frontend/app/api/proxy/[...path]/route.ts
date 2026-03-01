@@ -11,65 +11,80 @@ function buildBackendUrl(pathParts: string[], searchParams: URLSearchParams): st
     : `${BACKEND_URL}/${path}`;
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const url = buildBackendUrl(params.path, request.nextUrl.searchParams);
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type RouteContext = { params: any };
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  const resolvedParams = await Promise.resolve(context.params);
+  const pathParts: string[] = resolvedParams.path;
+  const url = buildBackendUrl(pathParts, request.nextUrl.searchParams);
   const isStream = url.includes("/stream");
 
-  const backendRes = await fetch(url, {
-    headers: {
-      Accept: isStream ? "text/event-stream" : "application/json",
-    },
-    // Disable Next.js caching for streaming / real-time endpoints
-    cache: "no-store",
-  });
-
-  if (isStream) {
-    // Forward the SSE stream body directly
-    return new NextResponse(backendRes.body, {
-      status: backendRes.status,
+  try {
+    const backendRes = await fetch(url, {
       headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-        Connection: "keep-alive",
+        Accept: isStream ? "text/event-stream" : "application/json",
       },
+      cache: "no-store",
     });
+
+    if (isStream) {
+      return new NextResponse(backendRes.body, {
+        status: backendRes.status,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "X-Accel-Buffering": "no",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    const contentType = backendRes.headers.get("content-type") ?? "";
+
+    if (contentType.includes("text/html")) {
+      const html = await backendRes.text();
+      return new NextResponse(html, {
+        status: backendRes.status,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    if (contentType.includes("application/pdf")) {
+      return new NextResponse(backendRes.body, {
+        status: backendRes.status,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": backendRes.headers.get("content-disposition") ?? "attachment",
+        },
+      });
+    }
+
+    // Handle ZIP / octet-stream (exports)
+    if (contentType.includes("application/zip") || contentType.includes("application/octet-stream")) {
+      return new NextResponse(backendRes.body, {
+        status: backendRes.status,
+        headers: {
+          "Content-Type": contentType,
+          "Content-Disposition": backendRes.headers.get("content-disposition") ?? "attachment",
+        },
+      });
+    }
+
+    const data = await backendRes.json().catch(() => null);
+    return NextResponse.json(data, { status: backendRes.status });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Backend unreachable", detail: String(err) },
+      { status: 502 }
+    );
   }
-
-  const contentType = backendRes.headers.get("content-type") ?? "";
-
-  // Forward HTML responses as-is (e.g. report pages)
-  if (contentType.includes("text/html")) {
-    const html = await backendRes.text();
-    return new NextResponse(html, {
-      status: backendRes.status,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-  }
-
-  // Forward PDF responses as-is
-  if (contentType.includes("application/pdf")) {
-    return new NextResponse(backendRes.body, {
-      status: backendRes.status,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": backendRes.headers.get("content-disposition") ?? "attachment",
-      },
-    });
-  }
-
-  const data = await backendRes.json().catch(() => null);
-  return NextResponse.json(data, { status: backendRes.status });
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
-) {
-  const url = buildBackendUrl(params.path, request.nextUrl.searchParams);
+export async function POST(request: NextRequest, context: RouteContext) {
+  const resolvedParams = await Promise.resolve(context.params);
+  const pathParts: string[] = resolvedParams.path;
+  const url = buildBackendUrl(pathParts, request.nextUrl.searchParams);
 
   let body: BodyInit | null = null;
   const contentType = request.headers.get("content-type") ?? "";
@@ -77,15 +92,41 @@ export async function POST(
     body = await request.text();
   }
 
-  const backendRes = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: body ?? undefined,
-    cache: "no-store",
-  });
+  try {
+    const backendRes = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ?? undefined,
+      cache: "no-store",
+    });
 
-  const data = await backendRes.json().catch(() => null);
-  return NextResponse.json(data, { status: backendRes.status });
+    const data = await backendRes.json().catch(() => null);
+    return NextResponse.json(data, { status: backendRes.status });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Backend unreachable", detail: String(err) },
+      { status: 502 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const resolvedParams = await Promise.resolve(context.params);
+  const pathParts: string[] = resolvedParams.path;
+  const url = buildBackendUrl(pathParts, request.nextUrl.searchParams);
+
+  try {
+    const backendRes = await fetch(url, {
+      method: "DELETE",
+      cache: "no-store",
+    });
+
+    const data = await backendRes.json().catch(() => null);
+    return NextResponse.json(data, { status: backendRes.status });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Backend unreachable", detail: String(err) },
+      { status: 502 }
+    );
+  }
 }
