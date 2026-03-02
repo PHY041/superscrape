@@ -1,4 +1,4 @@
-"""AI vision analyzer -- classifies product images using GPT-5.2 Vision."""
+"""AI vision analyzer -- classifies product images using Gemini 2.5 Flash."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import json
 import logging
 import os
 
-from openai import OpenAI
+from google import genai
+from google.genai import types
 
 from superscrape.core.retry import retry_with_backoff
 from superscrape.output.models import ImageAnalysis, ScrapedItem
@@ -47,22 +48,36 @@ Return a JSON object with these fields:
 
 Return ONLY valid JSON, no markdown fences."""
 
-_client: OpenAI | None = None
+_client: genai.Client | None = None
+
+_MODEL_ID = "gemini-2.5-flash"
+_GEN_CONFIG = types.GenerateContentConfig(
+    temperature=0.1,
+    max_output_tokens=1024,
+    response_mime_type="application/json",
+    thinking_config=types.ThinkingConfig(thinking_budget=0),
+)
 
 
 def validate_api_key() -> None:
-    """Validate that OPENAI_API_KEY is set. Call at CLI startup."""
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise EnvironmentError("OPENAI_API_KEY is not set. Export it before running: export OPENAI_API_KEY=sk-...")
+    """Validate that GOOGLE_GENAI_API_KEY is set. Call at CLI startup."""
+    if not os.environ.get("GOOGLE_GENAI_API_KEY"):
+        raise EnvironmentError(
+            "GOOGLE_GENAI_API_KEY is not set. Export it before running: "
+            "export GOOGLE_GENAI_API_KEY=AIza..."
+        )
 
 
-def _get_client() -> OpenAI:
+def _get_client() -> genai.Client:
     global _client
     if _client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
+        api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
         if not api_key:
-            raise EnvironmentError("OPENAI_API_KEY is not set. Export it before running: export OPENAI_API_KEY=sk-...")
-        _client = OpenAI(api_key=api_key)
+            raise EnvironmentError(
+                "GOOGLE_GENAI_API_KEY is not set. Export it before running: "
+                "export GOOGLE_GENAI_API_KEY=AIza..."
+            )
+        _client = genai.Client(api_key=api_key)
     return _client
 
 
@@ -73,28 +88,49 @@ def _prompt_for_platform(platform: str) -> str:
     return _ECOMMERCE_PROMPT
 
 
+def _download_image_bytes(image_url: str) -> bytes:
+    """Download image bytes from URL for Gemini inline upload."""
+    import urllib.request
+
+    req = urllib.request.Request(
+        image_url,
+        headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return resp.read()
+
+
+def _guess_mime_type(url: str) -> str:
+    """Guess MIME type from URL extension."""
+    lower = url.lower().split("?")[0]
+    if lower.endswith(".png"):
+        return "image/png"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    if lower.endswith(".gif"):
+        return "image/gif"
+    return "image/jpeg"
+
+
 def analyze_image(image_url: str, platform: str = "amazon") -> ImageAnalysis:
-    """Analyze a single product image using GPT-5.2 Vision."""
+    """Analyze a single product image using Gemini 2.5 Flash."""
     client = _get_client()
     system_prompt = _prompt_for_platform(platform)
 
     def _call() -> str:
-        resp = client.chat.completions.create(
-            model="gpt-5.2",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Analyze this product image:"},
-                        {"type": "image_url", "image_url": {"url": image_url, "detail": "low"}},
-                    ],
-                },
+        image_bytes = _download_image_bytes(image_url)
+        mime_type = _guess_mime_type(image_url)
+
+        resp = client.models.generate_content(
+            model=_MODEL_ID,
+            contents=[
+                system_prompt,
+                "Analyze this product image:",
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
             ],
-            temperature=0.1,
-            max_completion_tokens=500,
+            config=_GEN_CONFIG,
         )
-        return resp.choices[0].message.content.strip()
+        return resp.text.strip()
 
     raw = retry_with_backoff(_call, description=f"analyze_image({image_url[-40:]})")
     # Strip markdown fences if present
