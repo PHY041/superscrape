@@ -94,7 +94,7 @@ def _run_pipeline_sync(job_id: str, req: JobRequest) -> None:
         )
 
         # ── Step 2: Vision Analysis ────────────────────────────────────────
-        _emit(job_id, PipelineStep.analyzing, "Analyzing product images with GPT Vision...", 40, platform=pval)
+        _emit(job_id, PipelineStep.analyzing, "Analyzing product images with Gemini Vision...", 40, platform=pval)
         analyses = batch_analyze_all_images(products, max_images_per_product=7)
         _emit(
             job_id,

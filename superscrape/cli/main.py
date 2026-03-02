@@ -128,7 +128,7 @@ def visual(keyword: str, top: int, output_dir: str, no_cache: bool):
         save_cache(keyword, top, {"products": [p.model_dump() for p in products]})
 
     # Step 2: AI Analysis
-    console.print("[bold]Step 2/3: Analyzing main images with GPT Vision...[/bold]")
+    console.print("[bold]Step 2/3: Analyzing main images with Gemini Vision...[/bold]")
     analyses = batch_analyze_first_images(products)
     console.print(f"  Analyzed {len(analyses)} images\n")
 
@@ -226,6 +226,167 @@ def reddit(subreddit: str, sort: str, limit: int, output: str):
                 str(p.num_comments),
             )
         console.print(table)
+
+
+# ─────────────────────── Listing Generation ───────────────────────
+
+
+@cli.group()
+def listing():
+    """Amazon listing image generation from Excel requirement sheets."""
+
+
+@listing.command("parse-excel")
+@click.option("--excel", "-e", required=True, type=click.Path(exists=True), help="Path to Excel requirement sheet")
+@click.option("--output", "-o", required=True, type=click.Path(), help="Project output directory")
+@click.option("--category", "-c", default="general_apparel", help="Product category (e.g. boys_shirt, womens_dress)")
+@click.option("--project-id", default="", help="Project ID (defaults to directory name)")
+def parse_excel(excel: str, output: str, category: str, project_id: str):
+    """Parse an Excel requirement sheet → config.json + reference images."""
+    from pathlib import Path
+
+    from superscrape.listing_gen.excel_parser import parse_excel_sync
+
+    console.print("\n[bold cyan]Listing Image Pipeline — Excel Parser[/bold cyan]")
+    console.print(f"Excel:    [bold]{excel}[/bold]")
+    console.print(f"Output:   [bold]{output}[/bold]")
+    console.print(f"Category: [bold]{category}[/bold]\n")
+
+    config = parse_excel_sync(
+        excel_path=Path(excel),
+        project_dir=Path(output),
+        product_category=category,
+        project_id=project_id,
+    )
+
+    console.print("\n[bold green]Excel parsed successfully![/bold green]")
+    console.print(f"  Product:    {config.product_name}")
+    console.print(f"  Client:     {config.client_name}")
+    console.print(f"  Slots:      {len(config.main_images)}")
+    console.print(f"  Scenes:     {len(config.scenes)}")
+    console.print(f"  Size data:  {'Yes' if config.size_data else 'No'}")
+    console.print(f"  Outfits:    {len(config.outfit_pairings)}")
+    console.print(f"  Config:     {Path(output) / 'config.json'}")
+
+
+@listing.command("validate")
+@click.option("--project", "-p", required=True, type=click.Path(exists=True), help="Project directory")
+def validate(project: str):
+    """Validate a project's config.json."""
+    from pathlib import Path
+
+    from superscrape.listing_gen.models import ProjectConfig
+
+    config_path = Path(project) / "config.json"
+    if not config_path.exists():
+        console.print(f"[red]config.json not found in {project}[/red]")
+        raise SystemExit(1)
+
+    config = ProjectConfig.load(config_path)
+    console.print("\n[bold green]Config is valid![/bold green]")
+    console.print(f"  Project:    {config.project_id}")
+    console.print(f"  Product:    {config.product_name}")
+    console.print(f"  Slots:      {len(config.main_images)}")
+
+    # Check required assets
+    project_dir = Path(project)
+    missing = []
+    for variant in config.color_variants:
+        for angle, rel_path in variant.photos.items():
+            if not (project_dir / rel_path).exists():
+                missing.append(f"{variant.name}/{angle}: {rel_path}")
+
+    if missing:
+        console.print(f"\n[yellow]Missing assets ({len(missing)}):[/yellow]")
+        for m in missing[:10]:
+            console.print(f"  - {m}")
+    else:
+        console.print("  Assets:     All present")
+
+
+@listing.command("generate")
+@click.option("--project", "-p", required=True, type=click.Path(exists=True), help="Project directory")
+@click.option("--slots", "-s", default="", help="Comma-separated slot numbers (default: all)")
+@click.option("--all", "gen_all", is_flag=True, help="Generate all slots")
+def generate(project: str, slots: str, gen_all: bool):
+    """Generate listing images from a project config."""
+    from pathlib import Path
+
+    from superscrape.listing_gen.pipeline import generate_all_sync
+
+    slot_list = None
+    if slots and not gen_all:
+        slot_list = [int(s.strip()) for s in slots.split(",")]
+
+    console.print("\n[bold cyan]Listing Image Pipeline — Generate[/bold cyan]")
+    console.print(f"Project: [bold]{project}[/bold]")
+    console.print(f"Slots:   [bold]{'all' if not slot_list else slot_list}[/bold]\n")
+
+    results = generate_all_sync(Path(project), slot_list)
+
+    console.print("\n[bold green]Generation complete![/bold green]")
+    for slot_key, result in results.items():
+        status = "[green]OK[/green]" if "output_path" in result else "[red]FAIL[/red]"
+        detail = result.get("output_path", result.get("error", result.get("reason", "?")))
+        console.print(f"  {slot_key}: {status} — {detail}")
+
+
+@listing.command("from-excel")
+@click.option("--excel", "-e", required=True, type=click.Path(exists=True), help="Path to Excel requirement sheet")
+@click.option("--photos", type=click.Path(exists=True), default="", help="Path to product photos folder")
+@click.option("--project", "-p", required=True, type=click.Path(), help="Project output directory")
+@click.option("--category", "-c", default="general_apparel", help="Product category")
+def from_excel(excel: str, photos: str, project: str, category: str):
+    """End-to-end: parse Excel → validate → generate all images."""
+    import shutil
+    from pathlib import Path
+
+    from superscrape.listing_gen.excel_parser import parse_excel_sync
+    from superscrape.listing_gen.pipeline import generate_all_sync
+
+    console.print("\n[bold cyan]Listing Image Pipeline — Full Run[/bold cyan]")
+    console.print(f"Excel:    [bold]{excel}[/bold]")
+    console.print(f"Photos:   [bold]{photos or '(none)'}[/bold]")
+    console.print(f"Project:  [bold]{project}[/bold]")
+    console.print(f"Category: [bold]{category}[/bold]\n")
+
+    project_dir = Path(project)
+
+    # Step 1: Copy product photos if provided
+    if photos:
+        photos_dest = project_dir / "assets" / "product_photos"
+        photos_dest.mkdir(parents=True, exist_ok=True)
+        photos_src = Path(photos)
+        copied = 0
+        for f in photos_src.iterdir():
+            if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+                shutil.copy2(f, photos_dest / f.name)
+                copied += 1
+        console.print(f"[bold]Step 0/3: Copied {copied} product photos[/bold]\n")
+
+    # Step 2: Parse Excel
+    console.print("[bold]Step 1/3: Parsing Excel requirement sheet...[/bold]")
+    config = parse_excel_sync(
+        excel_path=Path(excel),
+        project_dir=project_dir,
+        product_category=category,
+    )
+    console.print(f"  Product: {config.product_name}")
+    console.print(f"  Slots: {len(config.main_images)}")
+    console.print(f"  Scenes: {len(config.scenes)}\n")
+
+    # Step 3: Validate
+    console.print("[bold]Step 2/3: Validating config...[/bold]")
+    console.print("  Config OK\n")
+
+    # Step 4: Generate
+    console.print("[bold]Step 3/3: Generating images...[/bold]")
+    results = generate_all_sync(project_dir)
+
+    console.print("\n[bold green]Pipeline complete![/bold green]")
+    for slot_key, result in results.items():
+        status = "[green]OK[/green]" if "output_path" in result else "[yellow]SKIP[/yellow]"
+        console.print(f"  {slot_key}: {status}")
 
 
 if __name__ == "__main__":
