@@ -121,6 +121,20 @@ def _run_pipeline_sync(job_id: str, req: JobRequest) -> None:
                 platform=pval,
             )
 
+        # ── Step 3.5: Load category benchmark ────────────────────────────
+        benchmark = None
+        try:
+            from api.services.benchmark_service import get_benchmark
+            benchmark = get_benchmark(keyword)
+            if benchmark:
+                _emit(
+                    job_id, PipelineStep.analyzing,
+                    f"Loaded category benchmark ({benchmark.total_products} products, {benchmark.total_images} images)",
+                    73, platform=pval,
+                )
+        except Exception as exc:
+            logger.warning("Benchmark loading failed (non-fatal): %s", exc)
+
         # ── Step 4: Report ─────────────────────────────────────────────────
         _emit(job_id, PipelineStep.building_report, "Building category report...", 88, platform=pval)
         report = aggregate_report(keyword, products, analyses, platform=platform.value)
@@ -141,6 +155,7 @@ def _run_pipeline_sync(job_id: str, req: JobRequest) -> None:
             analyses=analyses,
             lifestyle_images=lifestyle_images,
             language=req.language,
+            benchmark=benchmark,
         )
         html_path.write_text(html_content, encoding="utf-8")
 
@@ -167,10 +182,10 @@ def _run_pipeline_sync(job_id: str, req: JobRequest) -> None:
             from api.services.strategy_gen import generate_ab_tests, generate_action_plan
 
             review_insights = analyze_reviews(products)
-            action_plan = generate_action_plan(report, products)
-            ab_tests = generate_ab_tests(report, products)
+            action_plan = generate_action_plan(report, products, benchmark=benchmark)
+            ab_tests = generate_ab_tests(report, products, benchmark=benchmark)
             seasonal_alerts = get_seasonal_alerts(keyword)
-            story_arc = design_story_arc(report, products, review_insights)
+            story_arc = design_story_arc(report, products, review_insights, benchmark=benchmark)
             logger.info(
                 "Strategy gen done: %d phases, %d tests, %d alerts, %d pain points, story arc=%s",
                 len(action_plan), len(ab_tests), len(seasonal_alerts),
@@ -193,6 +208,7 @@ def _run_pipeline_sync(job_id: str, req: JobRequest) -> None:
             seasonal_alerts=seasonal_alerts,
             review_insights=review_insights,
             story_arc=story_arc,
+            benchmark=benchmark.model_dump() if benchmark else None,
         )
 
         report_url = f"/reports/{job_id}/html"

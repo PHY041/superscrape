@@ -80,6 +80,7 @@ async def get_job_data(job_id: str) -> dict:
         "seasonal_alerts": data.seasonal_alerts,
         "review_insights": data.review_insights,
         "story_arc": data.story_arc,
+        "benchmark": data.benchmark,
     }
 
 

@@ -514,12 +514,132 @@ def _build_lifestyle_section(
 # ── Main Builder ──────────────────────────────────────────────────────────────
 
 
+def _build_benchmark_section(
+    benchmark: object,
+    report: "CategoryVisualReport",
+    lang: str = "en",
+) -> str:
+    """Build the Category Benchmark comparison section."""
+    b = benchmark if isinstance(benchmark, dict) else (benchmark.model_dump() if hasattr(benchmark, "model_dump") else {})
+    if not b or not b.get("total_products"):
+        return ""
+
+    is_zh = lang == "zh"
+    title = "品类基准线 (80K 图片数据)" if is_zh else "Category Benchmark (80K Image Dataset)"
+    vs_label = "你的竞品" if is_zh else "Your Competitors"
+    bench_label = "品类基准" if is_zh else "Category Benchmark"
+
+    # ── Killer stat cards ──
+    missing_slots = b.get("missing_slots_ranking", {})
+    top_missing = list(missing_slots.items())[:3]
+    aplus_rate = b.get("aplus_adoption_rate", 0)
+    aplus_score = b.get("aplus_avg_score", 0)
+    quality_avg = b.get("quality_avg", 0)
+
+    cards_html = '<div class="kpi-grid">'
+    cards_html += f'''<div class="kpi-card">
+        <div class="kpi-value">{b.get("total_products", 0):,}</div>
+        <div class="kpi-label">{"基准产品数" if is_zh else "Benchmark Products"}</div>
+    </div>'''
+    cards_html += f'''<div class="kpi-card">
+        <div class="kpi-value">{b.get("total_images", 0):,}</div>
+        <div class="kpi-label">{"基准图片数" if is_zh else "Benchmark Images"}</div>
+    </div>'''
+    cards_html += f'''<div class="kpi-card">
+        <div class="kpi-value">{aplus_rate:.0f}%</div>
+        <div class="kpi-label">{"有A+内容" if is_zh else "Have A+ Content"}</div>
+    </div>'''
+    cards_html += f'''<div class="kpi-card">
+        <div class="kpi-value">{quality_avg:.1f}/5</div>
+        <div class="kpi-label">{"平均图片质量" if is_zh else "Avg Image Quality"}</div>
+    </div>'''
+    cards_html += '</div>'
+
+    # ── Missing slots (opportunities) ──
+    opp_title = "最大机会点" if is_zh else "Biggest Opportunities"
+    opp_html = f'<h3 style="font-size:13px;font-weight:600;margin:16px 0 10px;color:#374151;">{opp_title}</h3>'
+    opp_html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+    for slot, pct in top_missing:
+        label = f"{pct:.0f}% {'缺少' if is_zh else 'missing'} {slot}"
+        opp_html += f'''<div style="flex:1;min-width:180px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:12px;">
+            <div style="font-size:22px;font-weight:700;color:#D97706;">{pct:.0f}%</div>
+            <div style="font-size:11px;color:#92400E;margin-top:2px;">{"缺少" if is_zh else "missing"} <strong>{slot}</strong></div>
+        </div>'''
+    opp_html += '</div>'
+
+    # ── Image type comparison bars ──
+    comp_title = "图片类型对比" if is_zh else "Image Type Comparison"
+    bench_dist = b.get("image_type_distribution", {})
+    report_dist = report.image_type_distribution if report else {}
+
+    bars_html = f'<h3 style="font-size:13px;font-weight:600;margin:20px 0 10px;color:#374151;">{comp_title}</h3>'
+    bars_html += f'''<div style="display:flex;gap:6px;font-size:10px;margin-bottom:8px;color:#6B7280;">
+        <span style="display:inline-block;width:12px;height:12px;background:#2563EB;border-radius:2px;"></span> {vs_label}
+        <span style="margin-left:12px;display:inline-block;width:12px;height:12px;background:#D1D5DB;border-radius:2px;"></span> {bench_label}
+    </div>'''
+
+    all_types = sorted(set(list(bench_dist.keys()) + list(report_dist.keys())))
+    for img_type in all_types:
+        yours = report_dist.get(img_type, 0)
+        theirs = bench_dist.get(img_type, 0)
+        delta = yours - theirs
+        delta_color = "#10B981" if delta > 0 else "#EF4444" if delta < 0 else "#6B7280"
+        delta_sign = "+" if delta > 0 else ""
+
+        bars_html += f'''<div style="margin-bottom:6px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                <span style="width:90px;font-size:11px;font-weight:500;color:#374151;text-align:right;">{img_type}</span>
+                <div style="flex:1;display:flex;align-items:center;gap:4px;">
+                    <div style="height:6px;background:#2563EB;border-radius:3px;width:{min(yours, 100) * 0.8}%;"></div>
+                    <span style="font-size:10px;color:#2563EB;">{yours:.0f}%</span>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:90px;"></span>
+                <div style="flex:1;display:flex;align-items:center;gap:4px;">
+                    <div style="height:6px;background:#D1D5DB;border-radius:3px;width:{min(theirs, 100) * 0.8}%;"></div>
+                    <span style="font-size:10px;color:#6B7280;">{theirs:.0f}%</span>
+                    <span style="font-size:10px;font-weight:600;color:{delta_color};">{delta_sign}{delta:.0f}%</span>
+                </div>
+            </div>
+        </div>'''
+
+    # ── Price tier distribution ──
+    price_dist = b.get("price_tier_distribution", {})
+    price_html = ""
+    if price_dist:
+        price_title = "价格定位分布" if is_zh else "Price Tier Distribution"
+        price_html = f'<h3 style="font-size:13px;font-weight:600;margin:20px 0 10px;color:#374151;">{price_title}</h3>'
+        price_html += '<div style="display:flex;gap:8px;">'
+        tier_colors = {"budget": "#10B981", "mid_range": "#2563EB", "premium": "#7C3AED", "luxury": "#D97706"}
+        for tier, pct in price_dist.items():
+            color = tier_colors.get(tier, "#6B7280")
+            price_html += f'''<div style="flex:1;text-align:center;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:10px;">
+                <div style="font-size:20px;font-weight:700;color:{color};">{pct:.0f}%</div>
+                <div style="font-size:10px;color:#6B7280;margin-top:2px;">{tier.replace("_", " ").title()}</div>
+            </div>'''
+        price_html += '</div>'
+
+    return f'''
+    <div class="card section-break">
+        <h2 style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">📊</span> {title}
+        </h2>
+        {cards_html}
+        {opp_html}
+        {bars_html}
+        {price_html}
+    </div>
+    '''
+
+
 def build_html_report(
     report: "CategoryVisualReport",
     products: list["ScrapedItem"],
     analyses: list["ImageAnalysis"],
     lifestyle_images: list[str],
     language: Language = Language.en,
+    benchmark: object | None = None,
 ) -> str:
     """Build a self-contained, bilingual HTML report.
 
@@ -545,6 +665,7 @@ def build_html_report(
     rec_section = _build_recommendations(report, lbl)
     product_grid = _build_product_grid(report, products, lbl, platform)
     lifestyle_section = _build_lifestyle_section(lifestyle_images, lbl)
+    benchmark_section = _build_benchmark_section(benchmark, report, lang) if benchmark else ""
 
     css = _get_css()
 
@@ -586,6 +707,9 @@ def build_html_report(
 
     <!-- Distribution Charts -->
     {dist_section}
+
+    <!-- Category Benchmark -->
+    {benchmark_section}
 
     <!-- Recommendations -->
     {rec_section}

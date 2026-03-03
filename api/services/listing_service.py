@@ -26,7 +26,7 @@ from superscrape.listing_gen.models import (
     SlotMethod,
     SlotType,
 )
-from superscrape.output.models import CategoryVisualReport, ScrapedItem
+from superscrape.output.models import BenchmarkData, CategoryVisualReport, ScrapedItem
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +282,7 @@ def generate_listing_text(
     products: list[ScrapedItem],
     report: CategoryVisualReport,
     brand_name: str = "",
+    benchmark: BenchmarkData | None = None,
 ) -> dict:
     """Generate Amazon listing text (title, bullets, description) using GPT-5.2.
 
@@ -335,6 +336,15 @@ Return ONLY valid JSON:
         user_parts.append(f"\nPrice range: {price_range}")
     user_parts.append(f"\nHigh-frequency keywords: {', '.join(common_keywords[:15])}")
     user_parts.append(f"\nVisual insights: {report.has_person_ratio}% show models, {report.has_text_ratio}% use text overlays")
+
+    if benchmark and benchmark.total_products > 0:
+        user_parts.append(f"\nCategory benchmark ({benchmark.total_products:,} products):")
+        if benchmark.top_style_tags:
+            user_parts.append(f"  Dominant styles: {', '.join(benchmark.top_style_tags[:6])}")
+        if benchmark.price_tier_distribution:
+            tiers = [f"{t}: {p}%" for t, p in list(benchmark.price_tier_distribution.items())[:3]]
+            user_parts.append(f"  Price tiers: {', '.join(tiers)}")
+
     user_parts.append(f"\nGenerate the complete Amazon listing text. Return ONLY JSON.")
 
     try:
