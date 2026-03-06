@@ -20,6 +20,7 @@ from openai import OpenAI
 from superscrape.listing_gen.category_config import get_category_config
 from superscrape.listing_gen.models import (
     BrandConfig,
+    ColorVariant,
     ImageSlotSpec,
     ProjectConfig,
     SceneRequirement,
@@ -226,6 +227,7 @@ def auto_generate_config(
             name=brand_name,
             colors=brand_colors or [],
         ),
+        color_variants=[ColorVariant(name="default", photos=photo_map)] if photo_map else [],
         main_images=slots,
         scenes=scenes,
         size_data=None,  # Can be enhanced later

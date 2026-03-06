@@ -87,15 +87,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const url = buildBackendUrl(pathParts, request.nextUrl.searchParams);
 
   let body: BodyInit | null = null;
+  const headers: Record<string, string> = {};
   const contentType = request.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
+
+  if (contentType.includes("multipart/form-data")) {
+    // Stream multipart body directly to preserve boundary
+    body = request.body;
+    headers["content-type"] = contentType;
+  } else if (contentType.includes("application/json")) {
     body = await request.text();
+    headers["content-type"] = "application/json";
   }
 
   try {
     const backendRes = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: body ?? undefined,
       cache: "no-store",
     });
