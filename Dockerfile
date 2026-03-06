@@ -34,8 +34,10 @@ COPY api/ api/
 # Install Python deps (non-editable for Docker)
 RUN pip install --no-cache-dir .
 
-# Download Camoufox browser binary
-RUN python -c "from camoufox.sync_api import Camoufox; print('Camoufox binary ready')" || true
+# Download Camoufox browser binary (FF135 from daijro/camoufox releases)
+# Also install Playwright system deps for the bundled Firefox
+RUN python -m camoufox fetch && \
+    python -c "import camoufox, glob, os; d=os.path.dirname(camoufox.__file__); print('Binary:', glob.glob(f'{d}/**/firefox*', recursive=True)[:3])"
 
 EXPOSE 8001
 
