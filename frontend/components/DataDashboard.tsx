@@ -75,6 +75,23 @@ interface SeasonalAlert {
   days_until: number;
 }
 
+interface BenchmarkData {
+  category: string;
+  total_products: number;
+  total_images: number;
+  image_type_distribution: Record<string, number>;
+  angle_distribution: Record<string, number>;
+  background_distribution: Record<string, number>;
+  has_person_ratio: number;
+  has_text_ratio: number;
+  top_style_tags: string[];
+  quality_avg: number;
+  missing_slots_ranking: Record<string, number>;
+  aplus_adoption_rate: number;
+  aplus_avg_score: number;
+  price_tier_distribution: Record<string, number>;
+}
+
 interface JobData {
   products: Array<{ title: string; price: string; rating: number; reviews_count: number; reviews?: Array<{ text: string; stars: number }> }>;
   analyses: Array<{ image_type: string; selling_point_angle: string; info_hierarchy: string; text_coverage_pct: number }>;
@@ -84,12 +101,14 @@ interface JobData {
   seasonal_alerts: SeasonalAlert[];
   review_insights: ReviewInsights;
   story_arc: StoryArc;
+  benchmark: BenchmarkData | null;
 }
 
-type Tab = "overview" | "reviews" | "story_arc" | "action_plan" | "ab_tests";
+type Tab = "overview" | "benchmark" | "reviews" | "story_arc" | "action_plan" | "ab_tests";
 
 const TAB_LABELS: Record<Tab, string> = {
   overview: "Overview",
+  benchmark: "Benchmark",
   reviews: "Review Insights",
   story_arc: "7-Image Strategy",
   action_plan: "Action Plan",
@@ -166,7 +185,9 @@ export default function DataDashboard({ jobId }: { jobId: string }) {
 
       {/* Tab navigation */}
       <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-        {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
+        {(Object.keys(TAB_LABELS) as Tab[]).filter((t) =>
+          t !== "benchmark" || (data.benchmark && data.benchmark.total_products > 0)
+        ).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -177,6 +198,11 @@ export default function DataDashboard({ jobId }: { jobId: string }) {
             }`}
           >
             {TAB_LABELS[t]}
+            {t === "benchmark" && data.benchmark && (
+              <span className="ml-1.5 text-xs text-slate-400">
+                ({data.benchmark.total_products.toLocaleString()})
+              </span>
+            )}
             {t === "reviews" && data.review_insights?.total_reviews_analyzed > 0 && (
               <span className="ml-1.5 text-xs text-slate-400">
                 ({data.review_insights.total_reviews_analyzed})
@@ -189,6 +215,7 @@ export default function DataDashboard({ jobId }: { jobId: string }) {
       {/* Tab content */}
       <div className="bg-white border border-slate-200 rounded-xl p-6">
         {tab === "overview" && <OverviewTab data={data} />}
+        {tab === "benchmark" && <BenchmarkTab benchmark={data.benchmark} report={data.report} />}
         {tab === "reviews" && <ReviewsTab insights={data.review_insights} />}
         {tab === "story_arc" && <StoryArcTab arc={data.story_arc} />}
         {tab === "action_plan" && <ActionPlanTab phases={data.action_plan} />}
@@ -501,6 +528,150 @@ function ABTestsTab({ tests }: { tests: ABTest[] }) {
           <div className="mt-2 text-xs text-slate-400">Primary metric: {test.metric}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function BenchmarkTab({ benchmark, report }: { benchmark: BenchmarkData | null; report: JobData["report"] }) {
+  if (!benchmark || !benchmark.total_products) {
+    return <p className="text-sm text-slate-500">No benchmark data available for this category.</p>;
+  }
+
+  const TIER_COLORS: Record<string, string> = {
+    budget: "text-emerald-600",
+    mid_range: "text-blue-600",
+    premium: "text-violet-600",
+    luxury: "text-amber-600",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Benchmark stats */}
+      <div className="grid grid-cols-4 gap-4">
+        {[
+          { label: "Benchmark Products", value: benchmark.total_products.toLocaleString() },
+          { label: "Benchmark Images", value: benchmark.total_images.toLocaleString() },
+          { label: "A+ Adoption", value: `${benchmark.aplus_adoption_rate.toFixed(0)}%` },
+          { label: "Avg Quality", value: `${benchmark.quality_avg.toFixed(1)}/5` },
+        ].map((s) => (
+          <div key={s.label} className="bg-slate-50 rounded-lg p-3 text-center">
+            <div className="text-2xl font-semibold text-slate-900">{s.value}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Opportunities (missing slots) */}
+      {Object.keys(benchmark.missing_slots_ranking).length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-slate-700 mb-3">Your Opportunities</h3>
+          <div className="space-y-2">
+            {Object.entries(benchmark.missing_slots_ranking).slice(0, 5).map(([slot, pct]) => (
+              <div key={slot} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                <span className="text-lg font-bold text-amber-600">{pct.toFixed(0)}%</span>
+                <div className="flex-1">
+                  <span className="text-sm text-amber-800">missing <strong>{slot.replace(/_/g, " ")}</strong></span>
+                  <p className="text-xs text-amber-600 mt-0.5">Add this image to beat {pct.toFixed(0)}% of competitors</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Image type comparison */}
+      <div>
+        <h3 className="text-sm font-medium text-slate-700 mb-3">
+          Image Type: Your Competitors vs Category Benchmark
+        </h3>
+        <div className="flex gap-4 text-xs text-slate-500 mb-2">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-500 rounded-sm inline-block" /> Your Competitors</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-slate-300 rounded-sm inline-block" /> Benchmark</span>
+        </div>
+        <div className="space-y-3">
+          {Object.keys({ ...benchmark.image_type_distribution, ...report.image_type_distribution })
+            .sort()
+            .map((type) => {
+              const yours = report.image_type_distribution[type] ?? 0;
+              const theirs = benchmark.image_type_distribution[type] ?? 0;
+              const delta = yours - theirs;
+              return (
+                <div key={type}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-slate-500 w-24 text-right">{type}</span>
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden relative">
+                        <div className="h-full bg-blue-500 rounded-full absolute top-0 left-0" style={{ width: `${Math.min(yours, 100)}%` }} />
+                      </div>
+                      <span className="text-xs w-10 text-blue-600">{yours.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-24" />
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 h-4 bg-slate-100 rounded-full overflow-hidden relative">
+                        <div className="h-full bg-slate-300 rounded-full absolute top-0 left-0" style={{ width: `${Math.min(theirs, 100)}%` }} />
+                      </div>
+                      <span className="text-xs w-10 text-slate-500">{theirs.toFixed(0)}%</span>
+                      <span className={`text-xs font-semibold ${delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-500" : "text-slate-400"}`}>
+                        {delta > 0 ? "+" : ""}{delta.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
+      {/* Price tier distribution */}
+      {Object.keys(benchmark.price_tier_distribution).length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-slate-700 mb-3">Price Tier Distribution</h3>
+          <div className="grid grid-cols-4 gap-3">
+            {Object.entries(benchmark.price_tier_distribution).map(([tier, pct]) => (
+              <div key={tier} className="bg-slate-50 rounded-lg p-3 text-center">
+                <div className={`text-xl font-bold ${TIER_COLORS[tier] ?? "text-slate-600"}`}>{pct.toFixed(0)}%</div>
+                <div className="text-xs text-slate-500 mt-0.5">{tier.replace(/_/g, " ")}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Style tags */}
+      {benchmark.top_style_tags.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-slate-700 mb-2">Dominant Category Styles</h3>
+          <div className="flex flex-wrap gap-2">
+            {benchmark.top_style_tags.map((tag) => (
+              <span key={tag} className="text-xs px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full font-medium">
+                {tag.replace(/_/g, " ")}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* A+ score */}
+      {benchmark.aplus_avg_score > 0 && (
+        <div className="bg-slate-50 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-slate-700 mb-2">A+ Content Intelligence</h3>
+          <div className="flex items-center gap-6 text-sm">
+            <div>
+              <span className="text-2xl font-semibold text-blue-600">{benchmark.aplus_adoption_rate.toFixed(0)}%</span>
+              <span className="text-xs text-slate-500 ml-1">have A+ content</span>
+            </div>
+            <div>
+              <span className="text-2xl font-semibold text-amber-600">{benchmark.aplus_avg_score.toFixed(1)}</span>
+              <span className="text-xs text-slate-500 ml-1">/ 9 avg score</span>
+            </div>
+            <div className="flex-1 text-xs text-slate-500">
+              Most A+ content in this category scores below average — doing it well puts you ahead.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

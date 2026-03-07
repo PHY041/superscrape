@@ -10,6 +10,8 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - BYTEPLUSES_API_KEY=${BYTEPLUSES_API_KEY:-}
+      - PROXY_URL=${PROXY_URL:-}
+      - CAMOUFOX_PATH=${CAMOUFOX_PATH:-}
       - REPORTS_DIR=/app/reports
     volumes:
       - reports:/app/reports

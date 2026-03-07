@@ -12,7 +12,7 @@ import os
 
 from openai import OpenAI
 
-from superscrape.output.models import CategoryVisualReport, ScrapedItem
+from superscrape.output.models import BenchmarkData, CategoryVisualReport, ScrapedItem
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ def design_story_arc(
     report: CategoryVisualReport,
     products: list[ScrapedItem],
     review_insights: dict | None = None,
+    benchmark: BenchmarkData | None = None,
 ) -> dict:
     """Design a 7-image story arc based on competitive intelligence.
 
@@ -118,6 +119,19 @@ def design_story_arc(
         parts.append("\nTop competitors:")
         for p in products[:5]:
             parts.append(f"  - {p.title[:70]}... | {p.price} | {p.rating}★")
+
+    # Category benchmark (80K image dataset)
+    if benchmark and benchmark.total_products > 0:
+        parts.append(f"\n--- CATEGORY BENCHMARK ({benchmark.total_products:,} products / {benchmark.total_images:,} images) ---")
+        if benchmark.missing_slots_ranking:
+            parts.append("Most commonly missing image slots:")
+            for slot, pct in list(benchmark.missing_slots_ranking.items())[:5]:
+                parts.append(f"  {slot}: {pct}% of products are missing this")
+        parts.append(f"A+ adoption: {benchmark.aplus_adoption_rate}%, avg score: {benchmark.aplus_avg_score}/9")
+        parts.append(f"Quality avg: {benchmark.quality_avg}/5")
+        if benchmark.top_style_tags:
+            parts.append(f"Category style: {', '.join(benchmark.top_style_tags[:6])}")
+        parts.append("IMPORTANT: Use missing slot data to prioritize which images to include. If 87% are missing size_chart, recommend it.")
 
     context = "\n".join(parts)
 

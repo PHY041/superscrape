@@ -181,5 +181,26 @@ class CategoryVisualReport(BaseModel):
     product_analyses: list[dict] = []
 
 
+class BenchmarkData(BaseModel):
+    """Category-level benchmark from 80K pre-analyzed clothing images."""
+
+    category: str = ""
+    matched_categories: list[str] = []
+    total_products: int = 0
+    total_images: int = 0
+    image_type_distribution: dict[str, float] = {}
+    angle_distribution: dict[str, float] = {}
+    background_distribution: dict[str, float] = {}
+    has_person_ratio: float = 0.0
+    has_text_ratio: float = 0.0
+    top_style_tags: list[str] = []
+    quality_avg: float = 0.0
+    missing_slots_ranking: dict[str, float] = {}
+    aplus_adoption_rate: float = 0.0
+    aplus_avg_score: float = 0.0
+    price_tier_distribution: dict[str, float] = {}
+    top_reverse_prompts: list[dict] = []
+
+
 # Alias for generic usage
 VisualReport = CategoryVisualReport

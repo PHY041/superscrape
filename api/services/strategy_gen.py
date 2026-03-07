@@ -8,7 +8,7 @@ import os
 
 from openai import OpenAI
 
-from superscrape.output.models import CategoryVisualReport, ScrapedItem
+from superscrape.output.models import BenchmarkData, CategoryVisualReport, ScrapedItem
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ Focus on: main image type, text overlays, model inclusion, angles. Keep descript
 def _build_context(
     report: CategoryVisualReport,
     products: list[ScrapedItem],
+    benchmark: BenchmarkData | None = None,
 ) -> str:
     """Build a concise context string from the report data."""
     parts: list[str] = []
@@ -81,15 +82,42 @@ def _build_context(
         for rec in report.recommendations:
             parts.append(f"  - {rec}")
 
+    # Category benchmark from 80K image dataset
+    if benchmark and benchmark.total_products > 0:
+        parts.append(f"\n--- CATEGORY BENCHMARK (from {benchmark.total_products:,} products / {benchmark.total_images:,} images) ---")
+        parts.append(f"Category: {benchmark.category}")
+
+        if benchmark.missing_slots_ranking:
+            parts.append("\nMost commonly missing image slots (% of products missing it):")
+            for slot, pct in list(benchmark.missing_slots_ranking.items())[:5]:
+                parts.append(f"  {slot}: {pct}% missing")
+
+        parts.append(f"\nBenchmark quality average: {benchmark.quality_avg}/5")
+        parts.append(f"A+ Content adoption: {benchmark.aplus_adoption_rate}%")
+        if benchmark.aplus_avg_score:
+            parts.append(f"A+ average score: {benchmark.aplus_avg_score}/9")
+
+        if benchmark.price_tier_distribution:
+            parts.append("\nPrice tier distribution:")
+            for tier, pct in benchmark.price_tier_distribution.items():
+                parts.append(f"  {tier}: {pct}%")
+
+        if benchmark.top_style_tags:
+            parts.append(f"\nTop style tags: {', '.join(benchmark.top_style_tags[:8])}")
+
+        parts.append("\nUSE THIS BENCHMARK DATA to make specific, data-backed recommendations.")
+        parts.append("Reference exact percentages and compare the user's competitors against the full category.")
+
     return "\n".join(parts)
 
 
 def generate_action_plan(
     report: CategoryVisualReport,
     products: list[ScrapedItem],
+    benchmark: BenchmarkData | None = None,
 ) -> list[dict]:
     """Generate a dynamic action plan based on competitive intelligence."""
-    context = _build_context(report, products)
+    context = _build_context(report, products, benchmark=benchmark)
 
     try:
         resp = _get_client().chat.completions.create(
@@ -124,9 +152,10 @@ def generate_action_plan(
 def generate_ab_tests(
     report: CategoryVisualReport,
     products: list[ScrapedItem],
+    benchmark: BenchmarkData | None = None,
 ) -> list[dict]:
     """Generate A/B test suggestions based on competitive intelligence."""
-    context = _build_context(report, products)
+    context = _build_context(report, products, benchmark=benchmark)
 
     try:
         resp = _get_client().chat.completions.create(

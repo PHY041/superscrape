@@ -14,8 +14,10 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.routes.benchmarks import router as benchmarks_router
 from api.routes.exports import router as exports_router
 from api.routes.jobs import router as jobs_router
+from api.routes.listing import router as listing_router
 from api.routes.monitor import router as monitor_router
 from api.routes.reports import router as reports_router
 from api.routes.uploads import router as uploads_router
@@ -61,10 +63,12 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(jobs_router)
+app.include_router(listing_router)
 app.include_router(reports_router)
 app.include_router(uploads_router)
 app.include_router(exports_router)
 app.include_router(monitor_router)
+app.include_router(benchmarks_router)
 
 
 @app.get("/health", tags=["meta"])

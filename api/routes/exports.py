@@ -81,6 +81,10 @@ async def export_job(job_id: str) -> StreamingResponse:
         if hasattr(data, "listing_text") and data.listing_text:
             zf.writestr("listing_text.json", json.dumps(data.listing_text, indent=2, ensure_ascii=False))
 
+        # Benchmark data
+        if hasattr(data, "benchmark") and data.benchmark:
+            zf.writestr("benchmark.json", json.dumps(data.benchmark, indent=2, ensure_ascii=False))
+
     buf.seek(0)
 
     keyword = ""

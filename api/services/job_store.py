@@ -30,7 +30,7 @@ _SENTINEL = object()
 class JobData:
     """Container for pipeline output data (products, analyses, report, strategy)."""
 
-    __slots__ = ("products", "analyses", "report", "action_plan", "ab_tests", "seasonal_alerts", "review_insights", "story_arc")
+    __slots__ = ("products", "analyses", "report", "action_plan", "ab_tests", "seasonal_alerts", "review_insights", "story_arc", "benchmark")
 
     def __init__(
         self,
@@ -42,6 +42,7 @@ class JobData:
         seasonal_alerts: list | None = None,
         review_insights: dict | None = None,
         story_arc: dict | None = None,
+        benchmark: dict | None = None,
     ) -> None:
         self.products = products
         self.analyses = analyses
@@ -51,6 +52,7 @@ class JobData:
         self.seasonal_alerts = seasonal_alerts or []
         self.review_insights = review_insights or {}
         self.story_arc = story_arc or {}
+        self.benchmark = benchmark or {}
 
 
 def _serialize_report(report: object) -> dict | None:
@@ -106,6 +108,7 @@ class JobStore:
                         seasonal_alerts=data_raw.get("seasonal_alerts", []),
                         review_insights=data_raw.get("review_insights", {}),
                         story_arc=data_raw.get("story_arc", {}),
+                    benchmark=data_raw.get("benchmark", {}),
                     )
                 loaded += 1
             except Exception as e:
@@ -153,6 +156,7 @@ class JobStore:
                 "seasonal_alerts": data.seasonal_alerts,
                 "review_insights": data.review_insights,
                 "story_arc": data.story_arc,
+                "benchmark": data.benchmark,
             }
 
             path = data_dir / f"{job_id}.json"
@@ -266,6 +270,7 @@ class JobStore:
         seasonal_alerts: list | None = None,
         review_insights: dict | None = None,
         story_arc: dict | None = None,
+        benchmark: dict | None = None,
     ) -> None:
         """Store structured pipeline output for later retrieval via /data endpoint."""
         with self._lock:
@@ -278,6 +283,7 @@ class JobStore:
                 seasonal_alerts=seasonal_alerts,
                 review_insights=review_insights,
                 story_arc=story_arc,
+                benchmark=benchmark,
             )
         self._persist_data(job_id)
 
